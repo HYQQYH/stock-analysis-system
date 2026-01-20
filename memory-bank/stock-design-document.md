@@ -42,21 +42,27 @@
 ### 2.2 功能二：个股分析
 **功能描述：**
 - 根据股票编码获取近期日K、周K、月K成交数据
+- 获取该股票所属的所有板块信息
+- 获取所选板块的日K、周K、月K成交数据（支持多板块）
 - 计算个股MACD、KDJ等技术指标
 - 从新浪财经获取个股相关新闻
 - 获取上证指数数据和大盘情绪数据作为参考
-- 整合所有数据输入AI模型，生成分析结论
+- 整合所有数据（个股、板块、大盘、新闻）输入AI模型，生成分析结论
 
 **输入数据：**
 - 股票编码（如：600000）
 - 个股历史K线数据
+- 个股所属板块列表
+- 所选板块的K线数据（日K、周K、月K）
 - 个股相关新闻
 - 上证指数数据
 - 分析提示词模板
 
 **输出结果：**
 - 个股技术指标数据
-- 综合分析报告
+- 板块列表及各板块K线数据
+- 板块技术指标数据
+- 综合分析报告（包含个股和板块对比分析）
 
 ---
 
@@ -88,8 +94,13 @@
 **界面功能模块：**
 1. **股票分析查询页**
    - 股票编码输入框
+   - 板块选择下拉框（支持选择多个板块进行对比）
+   - K线类型选择（日K/周K/月K）
    - 分析按钮
    - 分析结果展示区
+     - 个股K线图和技术指标
+     - 所选板块K线图和技术指标
+     - 个股与板块对比分析
    - 历史分析记录查看
 
 2. **大盘分析页**
@@ -100,6 +111,13 @@
    - 热门财经新闻列表
    - 新闻详情查看
    - 投资建议展示
+
+**板块选择功能说明：**
+- 当用户输入股票编码后，系统自动获取该股票所属的所有板块
+- 前端显示板块下拉列表，包含所有关联板块
+- 用户可从下拉框中选择一个或多个板块进行对比分析
+- 支持切换日K、周K、月K查看不同周期的板块走势
+- 系统展示选中板块的K线图、技术指标以及与个股的对比分析
 
 ---
 
@@ -308,10 +326,73 @@ CREATE TABLE market_sentiment (
 ) COMMENT='大盘情绪数据表';
 ```
 
+#### 5.1.7 板块信息表 (sector_info)
+```sql
+CREATE TABLE sector_info (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+    sector_name VARCHAR(100) NOT NULL COMMENT '板块名称',
+    sector_type VARCHAR(20) COMMENT '板块类型: 行业/概念/地域等',
+    description TEXT COMMENT '板块描述',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_sector_code (sector_code)
+) COMMENT='板块信息表';
+```
+
+#### 5.1.8 股票板块关联表 (stock_sector_relation)
+```sql
+CREATE TABLE stock_sector_relation (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
+    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_stock_sector (stock_code, sector_code),
+    INDEX idx_stock_code (stock_code),
+    INDEX idx_sector_code (sector_code)
+) COMMENT='股票板块关联表';
+```
+
+#### 5.1.9 板块K线数据表 (sector_kline_data)
+```sql
+CREATE TABLE sector_kline_data (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+    kline_type ENUM('day', 'week', 'month') NOT NULL COMMENT 'K线类型',
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    open_price DECIMAL(10,2) NOT NULL COMMENT '开盘价',
+    high_price DECIMAL(10,2) NOT NULL COMMENT '最高价',
+    low_price DECIMAL(10,2) NOT NULL COMMENT '最低价',
+    close_price DECIMAL(10,2) NOT NULL COMMENT '收盘价',
+    volume BIGINT NOT NULL COMMENT '成交量',
+    amount DECIMAL(20,2) NOT NULL COMMENT '成交额',
+    stock_count INT COMMENT '成分股数量',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_sector_kline (sector_code, kline_type, trade_date),
+    INDEX idx_trade_date (trade_date)
+) COMMENT='板块K线数据表';
+```
+
+#### 5.1.10 板块技术指标数据表 (sector_indicators)
+```sql
+CREATE TABLE sector_indicators (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
+    indicator_type VARCHAR(20) NOT NULL COMMENT '指标类型: MACD/KDJ等',
+    kline_type ENUM('day', 'week', 'month') NOT NULL,
+    trade_date DATE NOT NULL,
+    indicator_data JSON NOT NULL COMMENT '指标数值(JSON格式)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_indicator (sector_code, indicator_type, kline_type, trade_date)
+) COMMENT='板块技术指标数据表';
+```
+
 ### 5.2 数据库索引策略
 - 股票代码、交易日期建立复合索引
 - 新闻发布时间建立索引，支持快速查询
 - 分析历史按股票和时间建立索引
+- 板块代码建立索引，支持快速查询股票所属板块
+- 股票板块关联表建立双向索引，提高查询效率
 
 ---
 
@@ -334,6 +415,7 @@ CREATE TABLE market_sentiment (
   {
     "stock_code": "600000",
     "kline_type": "day",
+    "selected_sectors": ["BK0001", "BK0002"],
     "include_news": true
   }
   ```
@@ -344,11 +426,22 @@ CREATE TABLE market_sentiment (
     "message": "success",
     "data": {
       "stock_info": {...},
-      "kline_data": [...],
-      "indicators": {
+      "stock_kline_data": [...],
+      "stock_indicators": {
         "macd": [...],
         "kdj": [...]
       },
+      "sectors": [
+        {
+          "sector_code": "BK0001",
+          "sector_name": "银行板块",
+          "kline_data": [...],
+          "indicators": {
+            "macd": [...],
+            "kdj": [...]
+          }
+        }
+      ],
       "analysis_result": "...",
       "recommendation": "买入",
       "sentiment_score": 75.5
@@ -377,6 +470,34 @@ CREATE TABLE market_sentiment (
 - **描述**: 获取技术指标
 - **请求参数**: type, indicator_names
 - **响应**: 技术指标数据
+
+**GET /api/stock/{code}/sectors**
+- **描述**: 获取股票所属的所有板块
+- **请求参数**: 无
+- **响应**: 板块列表
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": [
+      {
+        "sector_code": "BK0001",
+        "sector_name": "银行板块",
+        "sector_type": "行业"
+      },
+      {
+        "sector_code": "BK0002",
+        "sector_name": "金融科技",
+        "sector_type": "概念"
+      }
+    ]
+  }
+  ```
+
+**GET /api/sector/{code}/kline**
+- **描述**: 获取板块K线数据
+- **请求参数**: type (day/week/month), start_date, end_date
+- **响应**: 板块K线数据数组
 
 #### 6.2.3 新闻相关
 
@@ -432,6 +553,12 @@ class StockDataFetcher:
     def fetch_realtime_data(code)
     def fetch_index_data(index_code)
 
+class SectorDataFetcher:
+    """板块数据获取器"""
+    def fetch_sector_list(stock_code)
+    def fetch_sector_kline_data(sector_code, kline_type, start_date, end_date)
+    def fetch_sector_indicators(sector_code, kline_type)
+
 class NewsCrawler:
     """新闻爬虫"""
     def crawl_sina_news(limit=20)
@@ -441,6 +568,7 @@ class Scheduler:
     """任务调度器"""
     def schedule_data_update()
     def schedule_news_crawl()
+    def schedule_sector_data_update()
 ```
 
 ### 7.2 技术指标计算模块 (Technical Indicators Module)
@@ -530,12 +658,22 @@ KDJ: {kdj_data}
 代码: {stock_code}
 名称: {stock_name}
 
-【K线数据】
+【个股K线数据】
 {stock_kline_data}
 
-【技术指标】
-MACD: {macd_data}
-KDJ: {kdj_data}
+【个股技术指标】
+MACD: {stock_macd_data}
+KDJ: {stock_kdj_data}
+
+【所属板块信息】
+该股票所属板块:
+{sector_list}
+
+【选中板块分析】
+{sector_analysis}
+
+【板块技术指标对比】
+{sector_indicators_comparison}
 
 【相关新闻】
 {related_news}
@@ -544,13 +682,15 @@ KDJ: {kdj_data}
 {index_analysis}
 
 请从以下维度进行分析:
-1. 技术面分析（指标信号、趋势判断）
-2. 基本面信息（结合新闻）
-3. 相对大盘表现
-4. 风险评估
-5. 投资建议（买入/持有/卖出/观望，目标价位）
+1. 技术面分析（个股指标信号、趋势判断）
+2. 板块对比分析（个股相对所属板块的表现）
+3. 板块强弱分析（板块技术指标和趋势）
+4. 基本面信息（结合新闻）
+5. 相对大盘表现
+6. 风险评估
+7. 投资建议（买入/持有/卖出/观望，目标价位）
 
-请给出专业、客观的分析结论。
+请给出专业、客观的分析结论，重点分析该股票在所属板块中的位置和表现。
 ```
 
 ### 7.4 Web服务模块 (Web Service Module)
@@ -616,11 +756,30 @@ src/
 ```jsx
 function StockAnalysisPage() {
   const [stockCode, setStockCode] = useState('');
+  const [klineType, setKlineType] = useState('day');
+  const [sectors, setSectors] = useState([]);
+  const [selectedSectors, setSelectedSectors] = useState([]);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [historyList, setHistoryList] = useState([]);
   
+  // 当股票代码输入后，获取所属板块
+  const handleStockCodeChange = async (code) => {
+    setStockCode(code);
+    if (code.length === 6) {
+      const sectorList = await fetchStockSectors(code);
+      setSectors(sectorList);
+      // 默认选择第一个板块
+      setSelectedSectors([sectorList[0]?.sector_code]);
+    }
+  };
+  
   const handleAnalyze = async () => {
-    const result = await analyzeStock(stockCode);
+    const result = await analyzeStock({
+      stock_code: stockCode,
+      kline_type: klineType,
+      selected_sectors: selectedSectors,
+      include_news: true
+    });
     setAnalysisResult(result);
     await loadHistory(stockCode);
   };
@@ -629,18 +788,74 @@ function StockAnalysisPage() {
     <div>
       <StockInput 
         value={stockCode} 
-        onChange={setStockCode}
+        onChange={handleStockCodeChange}
         onAnalyze={handleAnalyze}
       />
+      
+      {/* K线类型选择 */}
+      <KlineTypeSelector 
+        value={klineType}
+        onChange={setKlineType}
+        options={[
+          { value: 'day', label: '日K' },
+          { value: 'week', label: '周K' },
+          { value: 'month', label: '月K' }
+        ]}
+      />
+      
+      {/* 板块选择下拉框 */}
+      {sectors.length > 0 && (
+        <SectorSelector 
+          sectors={sectors}
+          selectedSectors={selectedSectors}
+          onChange={setSelectedSectors}
+          multiple={true}
+        />
+      )}
+      
       {analysisResult && (
         <>
-          <KLineChart data={analysisResult.klineData} />
-          <IndicatorDisplay indicators={analysisResult.indicators} />
-          <AnalysisResult content={analysisResult.analysisResult} />
+          {/* 个股K线图和技术指标 */}
+          <KLineChart data={analysisResult.stock_kline_data} />
+          <IndicatorDisplay indicators={analysisResult.stock_indicators} />
+          
+          {/* 选中板块的K线图和技术指标 */}
+          {analysisResult.sectors?.map((sector) => (
+            <div key={sector.sector_code}>
+              <h3>{sector.sector_name}</h3>
+              <KLineChart data={sector.kline_data} />
+              <IndicatorDisplay indicators={sector.indicators} />
+            </div>
+          ))}
+          
+          {/* AI分析结果 */}
+          <AnalysisResult content={analysisResult.analysis_result} />
         </>
       )}
       <HistoryList items={historyList} />
     </div>
+  );
+}
+
+// 板块选择组件示例
+function SectorSelector({ sectors, selectedSectors, onChange, multiple = false }) {
+  return (
+    <select
+      multiple={multiple}
+      value={selectedSectors}
+      onChange={(e) => {
+        const selected = multiple 
+          ? Array.from(e.target.selectedOptions, option => option.value)
+          : e.target.value;
+        onChange(selected);
+      }}
+    >
+      {sectors.map(sector => (
+        <option key={sector.sector_code} value={sector.sector_code}>
+          {sector.sector_name} ({sector.sector_type})
+        </option>
+      ))}
+    </select>
   );
 }
 ```
