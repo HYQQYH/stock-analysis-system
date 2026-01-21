@@ -29,8 +29,9 @@
 - 使用AI模型结合分析模板生成大盘走势分析结论
 
 **输入数据：**
-- 上证指数历史K线数据（日/周/月）
-- 大盘情绪指标数据
+- 上证指数历史K线数据（日/周/月）- 使用akshare的`stock_zh_a_hist`接口获取
+- 大盘情绪指标数据 - 使用akshare的`stock_market_fund_flow`和`stock_market_activity_legu`接口获取
+- 大盘资金流向数据
 - AI分析提示词模板
 
 **输出结果：**
@@ -51,11 +52,16 @@
 
 **输入数据：**
 - 股票编码（如：600000）
-- 个股历史K线数据
-- 个股所属板块列表
-- 所选板块的K线数据（日K、周K、月K）
+- 个股历史K线数据 - 使用akshare的`stock_zh_a_hist`接口获取
+- 个股所属板块列表 - 使用akshare的板块相关接口获取
+- 所选板块的K线数据（日K、周K、月K）- 使用akshare的`stock_board_concept_index_ths`接口获取
+- 个股基本信息 - 使用akshare的`stock_individual_basic_info_xq`接口获取
+- 个股财务指标 - 使用akshare的`stock_financial_abstract_new_ths`接口获取
+- 个股分时数据 - 使用akshare的`stock_zh_a_hist_min_em`接口获取
 - 个股相关新闻
 - 上证指数数据
+- 大盘资金流向和市场活跃度数据
+- 每日涨停股池数据 - 使用akshare的`stock_zt_pool_em`接口获取
 - 分析提示词模板
 
 **输出结果：**
@@ -66,14 +72,76 @@
 
 ---
 
-### 2.3 功能三：财经新闻爬取与投资建议
+### 2.3 功能三：大盘资金流向与市场活跃度分析
 **功能描述：**
-- 定时从新浪财经网站爬取最新财经新闻
+- 获取大盘资金流向历史数据，包括主力资金、超大单、大单、中单、小单的净流入数据
+- 获取市场赚钱效应分析数据，包括上涨家数、涨停家数、下跌家数、跌停家数、活跃度等指标
+- 结合涨停股池数据，分析市场热点和资金流向
+- 使用AI模型分析市场整体情绪和资金动向
+
+**输入数据：**
+- 大盘资金流向数据 - 使用akshare的`stock_market_fund_flow`接口获取
+- 市场活跃度数据 - 使用akshare的`stock_market_activity_legu`接口获取
+- 每日涨停股池数据 - 使用akshare的`stock_zt_pool_em`接口获取
+
+**输出结果：**
+- 大盘资金流向分析报告
+- 市场活跃度指标
+- 涨停股票列表及分析
+- 市场情绪判断
+- 热点板块识别
+
+---
+
+### 2.4 功能四：个股基本面与财务分析
+**功能描述：**
+- 获取个股公司基本信息，包括公司简介、主营业务等
+- 获取个股重要财务指标，支持按报告期、季度等维度查询
+- 分析财务指标变化趋势，包括同比增长、环比增长等
+- 结合AI模型生成财务健康度评估
+
+**输入数据：**
+- 股票代码 - 使用akshare的`stock_individual_basic_info_xq`接口获取公司基本信息
+- 财务指标参数 - 使用akshare的`stock_financial_abstract_new_ths`接口获取财务数据
+- 指标类型（按报告期、一季度、二季度、三季度、四季度、按年度）
+
+**输出结果：**
+- 公司基本信息
+- 财务指标数据（营业收入、净利润、毛利率、ROE等）
+- 财务指标同比增长数据
+- 财务健康度分析报告
+
+---
+
+### 2.5 功能五：个股分时数据分析
+**功能描述：**
+- 获取个股分时数据（1分钟、5分钟、15分钟、30分钟、60分钟）
+- 支持复权处理（前复权、后复权）
+- 计算分时级别的技术指标
+- 分析盘中资金流向和价格波动
+
+**输入数据：**
+- 股票代码 - 使用akshare的`stock_zh_a_hist_min_em`接口获取分时数据
+- 时间周期（1、5、15、30、60分钟）
+- 开始和结束时间
+- 复权类型（不复权、前复权、后复权）
+
+**输出结果：**
+- 分时K线数据
+- 分时技术指标
+- 盘中波动分析
+- 关键价格点位识别
+
+---
+
+### 2.6 功能六：财经新闻爬取与投资建议
+**功能描述：**
+- 定时从财经网站爬取最新财经新闻
 - 将新闻内容输入AI模型
 - AI分析识别潜在投资标的并给出原因
 
 **输入数据：**
-- 新浪财经新闻页面URL
+- 财经新闻页面URL
 - 新闻爬取配置（频率、数量）
 
 **输出结果：**
@@ -82,13 +150,15 @@
 
 ---
 
-### 2.4 功能四：前端界面与数据管理
+### 2.7 功能七：前端界面与数据管理
 **功能描述：**
 - 提供Web前端界面
 - 用户可输入股票编码查询分析结果
 - 显示分析结论详情
 - 查看历史分析记录（同一股票）
 - 查看爬取的热门新闻内容
+- 查看大盘资金流向和市场活跃度
+- 查看每日涨停股池
 - 数据库存储历史分析数据
 
 **界面功能模块：**
@@ -106,11 +176,24 @@
 2. **大盘分析页**
    - 上证指数分析结果展示
    - 大盘走势图表
+   - 资金流向数据展示
+   - 市场活跃度指标
+   - 涨停股池展示
 
 3. **新闻资讯页**
    - 热门财经新闻列表
    - 新闻详情查看
    - 投资建议展示
+
+4. **资金流向页**
+   - 大盘资金流向图表
+   - 主力、超大单、大单、中单、小单资金流向对比
+   - 历史资金流向数据查询
+
+5. **涨停板页**
+   - 每日涨停股票列表
+   - 涨停股票详情（封板时间、炸板次数、连板数等）
+   - 涨停股票所属行业分布
 
 **板块选择功能说明：**
 - 当用户输入股票编码后，系统自动获取该股票所属的所有板块
@@ -169,7 +252,8 @@
 - Redis：缓存热点数据、会话管理
 
 **外部集成：**
-- 新浪财经API：获取股票数据、新闻
+- akshare库：获取股票数据、K线数据、财务指标、涨停股池、资金流向等
+- 财经网站API：获取新闻资讯
 - LLM服务：AI分析能力（如OpenAI、通义千问、文心一言等）
 
 ---
@@ -198,6 +282,7 @@
   - 会话管理
 
 ### 4.4 数据采集与处理
+- **数据源库**: akshare - 获取股票K线、财务指标、涨停股池、资金流向、市场活跃度等数据
 - **HTTP请求**: requests / httpx
 - **网页爬虫**: BeautifulSoup4 / Scrapy
 - **数据解析**: lxml
@@ -387,6 +472,156 @@ CREATE TABLE sector_indicators (
 ) COMMENT='板块技术指标数据表';
 ```
 
+#### 5.1.11 个股公司详细信息表 (stock_company_detail)
+```sql
+CREATE TABLE stock_company_detail (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
+    stock_name VARCHAR(100) COMMENT '股票名称',
+    short_name VARCHAR(100) COMMENT '公司简称',
+    main_business TEXT COMMENT '主营业务',
+    industry VARCHAR(100) COMMENT '所属行业',
+    region VARCHAR(50) COMMENT '所属地区',
+    company_intro TEXT COMMENT '公司简介',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_stock_code (stock_code)
+) COMMENT='个股公司详细信息表 - 使用akshare stock_individual_basic_info_xq接口';
+```
+
+#### 5.1.12 个股财务指标表 (stock_financial_indicators)
+```sql
+CREATE TABLE stock_financial_indicators (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
+    report_date DATE NOT NULL COMMENT '报告期',
+    report_name VARCHAR(50) COMMENT '报告名称',
+    report_period VARCHAR(20) COMMENT '报告期类型: 按报告期/一季度/二季度/三季度/四季度/按年度',
+    metric_name VARCHAR(100) NOT NULL COMMENT '指标名称',
+    value DECIMAL(20,4) COMMENT '指标值',
+    single_value VARCHAR(50) COMMENT '单值',
+    yoy DECIMAL(10,4) COMMENT '同比增长率',
+    mom VARCHAR(50) COMMENT '环比数据',
+    single_yoy VARCHAR(50) COMMENT '单值同比增长',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stock_report (stock_code, report_date),
+    INDEX idx_report_date (report_date)
+) COMMENT='个股财务指标表 - 使用akshare stock_financial_abstract_new_ths接口';
+```
+
+#### 5.1.13 大盘资金流向数据表 (market_fund_flow)
+```sql
+CREATE TABLE market_fund_flow (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    sh_close_price DECIMAL(10,2) COMMENT '上证收盘价',
+    sh_change_pct DECIMAL(10,4) COMMENT '上证涨跌幅(%)',
+    sz_close_price DECIMAL(10,2) COMMENT '深证收盘价',
+    sz_change_pct DECIMAL(10,4) COMMENT '深证涨跌幅(%)',
+    main_net_inflow DECIMAL(20,2) COMMENT '主力净流入净额',
+    main_net_inflow_ratio DECIMAL(10,4) COMMENT '主力净流入净占比(%)',
+    super_large_net_inflow DECIMAL(20,2) COMMENT '超大单净流入净额',
+    super_large_net_inflow_ratio DECIMAL(10,4) COMMENT '超大单净流入净占比(%)',
+    large_net_inflow DECIMAL(20,2) COMMENT '大单净流入净额',
+    large_net_inflow_ratio DECIMAL(10,4) COMMENT '大单净流入净占比(%)',
+    medium_net_inflow DECIMAL(20,2) COMMENT '中单净流入净额',
+    medium_net_inflow_ratio DECIMAL(10,4) COMMENT '中单净流入净占比(%)',
+    small_net_inflow DECIMAL(20,2) COMMENT '小单净流入净额',
+    small_net_inflow_ratio DECIMAL(10,4) COMMENT '小单净流入净占比(%)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_trade_date (trade_date)
+) COMMENT='大盘资金流向数据表 - 使用akshare stock_market_fund_flow接口';
+```
+
+#### 5.1.14 市场活跃度数据表 (market_activity)
+```sql
+CREATE TABLE market_activity (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    rise_count INT COMMENT '上涨家数',
+    limit_up_count INT COMMENT '涨停家数',
+    real_limit_up_count INT COMMENT '真实涨停家数',
+    st_limit_up_count INT COMMENT 'ST/ST*涨停家数',
+    fall_count INT COMMENT '下跌家数',
+    limit_down_count INT COMMENT '跌停家数',
+    real_limit_down_count INT COMMENT '真实跌停家数',
+    st_limit_down_count INT COMMENT 'ST/ST*跌停家数',
+    flat_count INT COMMENT '平盘家数',
+    suspend_count INT COMMENT '停牌家数',
+    activity_level VARCHAR(20) COMMENT '活跃度',
+    stat_time TIMESTAMP COMMENT '统计时间',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_trade_date (trade_date)
+) COMMENT='市场活跃度数据表 - 使用akshare stock_market_activity_legu接口';
+```
+
+#### 5.1.15 涨停股池数据表 (limit_up_stock_pool)
+```sql
+CREATE TABLE limit_up_stock_pool (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
+    stock_name VARCHAR(50) NOT NULL COMMENT '股票名称',
+    change_pct DECIMAL(10,4) COMMENT '涨跌幅(%)',
+    latest_price DECIMAL(10,2) COMMENT '最新价',
+    turnover_amount DECIMAL(20,2) COMMENT '成交额',
+    circulation_market_value DECIMAL(20,2) COMMENT '流通市值',
+    total_market_value DECIMAL(20,2) COMMENT '总市值',
+    turnover_rate DECIMAL(10,4) COMMENT '换手率(%)',
+    limit_up_funds DECIMAL(20,2) COMMENT '封板资金',
+    first_limit_time TIME COMMENT '首次封板时间',
+    last_limit_time TIME COMMENT '最后封板时间',
+    burst_count INT COMMENT '炸板次数',
+    limit_up_stats VARCHAR(50) COMMENT '涨停统计',
+    continuous_limit_count INT COMMENT '连板数',
+    industry VARCHAR(50) COMMENT '所属行业',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_date_stock (trade_date, stock_code),
+    INDEX idx_trade_date (trade_date),
+    INDEX idx_industry (industry)
+) COMMENT='涨停股池数据表 - 使用akshare stock_zt_pool_em接口';
+```
+
+#### 5.1.16 个股分时数据表 (stock_intraday_data)
+```sql
+CREATE TABLE stock_intraday_data (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    trade_time TIME NOT NULL COMMENT '交易时间',
+    period_type VARCHAR(10) NOT NULL COMMENT '周期类型: 1min/5min/15min/30min/60min',
+    adjust_type VARCHAR(10) DEFAULT '' COMMENT '复权类型: 空/qfq/hfq',
+    open_price DECIMAL(10,2) COMMENT '开盘价',
+    close_price DECIMAL(10,2) COMMENT '收盘价',
+    high_price DECIMAL(10,2) COMMENT '最高价',
+    low_price DECIMAL(10,2) COMMENT '最低价',
+    volume DECIMAL(20,2) COMMENT '成交量(手)',
+    turnover_amount DECIMAL(20,2) COMMENT '成交额',
+    avg_price DECIMAL(10,2) COMMENT '均价',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_stock_time (stock_code, trade_date, trade_time, period_type),
+    INDEX idx_trade_date (trade_date)
+) COMMENT='个股分时数据表 - 使用akshare stock_zh_a_hist_min_em接口';
+```
+
+#### 5.1.17 概念板块指数数据表 (concept_sector_index)
+```sql
+CREATE TABLE concept_sector_index (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    sector_name VARCHAR(100) NOT NULL COMMENT '概念板块名称',
+    trade_date DATE NOT NULL COMMENT '交易日期',
+    open_price DECIMAL(10,2) COMMENT '开盘价',
+    high_price DECIMAL(10,2) COMMENT '最高价',
+    low_price DECIMAL(10,2) COMMENT '最低价',
+    close_price DECIMAL(10,2) COMMENT '收盘价',
+    volume BIGINT COMMENT '成交量',
+    turnover_amount DECIMAL(20,2) COMMENT '成交额',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_sector_date (sector_name, trade_date),
+    INDEX idx_trade_date (trade_date)
+) COMMENT='概念板块指数数据表 - 使用akshare stock_board_concept_index_ths接口';
+```
+
 ### 5.2 数据库索引策略
 - 股票代码、交易日期建立复合索引
 - 新闻发布时间建立索引，支持快速查询
@@ -526,6 +761,96 @@ CREATE TABLE sector_indicators (
 - **请求参数**: type, start_date, end_date
 - **响应**: 指数K线数据
 
+**GET /api/market/fund-flow**
+- **描述**: 获取大盘资金流向历史数据
+- **请求参数**: start_date, end_date
+- **响应**: 资金流向数据（使用akshare stock_market_fund_flow接口）
+
+**GET /api/market/activity**
+- **描述**: 获取市场活跃度数据
+- **请求参数**: date
+- **响应**: 市场活跃度指标（使用akshare stock_market_activity_legu接口）
+
+#### 6.2.5 涨停股池相关
+
+**GET /api/market/limit-up**
+- **描述**: 获取指定日期的涨停股池
+- **请求参数**: date (格式: '20241008')
+- **响应**: 涨停股票列表
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": {
+      "trade_date": "2024-10-08",
+      "stocks": [
+        {
+          "stock_code": "600000",
+          "stock_name": "股票名称",
+          "change_pct": 10.0,
+          "latest_price": 10.00,
+          "turnover_amount": 1000000000,
+          "first_limit_time": "09:30:00",
+          "last_limit_time": "09:30:00",
+          "burst_count": 0,
+          "continuous_limit_count": 1,
+          "industry": "银行"
+        }
+      ]
+    }
+  }
+  ```
+
+#### 6.2.6 个股基本信息相关
+
+**GET /api/stock/{code}/company-info**
+- **描述**: 获取公司基本信息
+- **请求参数**: 无
+- **响应**: 公司详细信息（使用akshare stock_individual_basic_info_xq接口）
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": {
+      "stock_code": "SH601127",
+      "stock_name": "赛力斯",
+      "short_name": "赛力斯",
+      "main_business": "新能源汽车及核心三电(电池、电驱、电控)、传统汽车及核心部件总成的研发、制造、销售及服务。"
+    }
+  }
+  ```
+
+**GET /api/stock/{code}/financial**
+- **描述**: 获取个股财务指标
+- **请求参数**: indicator (按报告期/一季度/二季度/三季度/四季度/按年度)
+- **响应**: 财务指标数据（使用akshare stock_financial_abstract_new_ths接口）
+
+#### 6.2.7 分时数据相关
+
+**GET /api/stock/{code}/intraday**
+- **描述**: 获取个股分时数据
+- **请求参数**: 
+  - period (1/5/15/30/60分钟)
+  - start_date (格式: "2024-03-20 09:30:00")
+  - end_date (格式: "2024-03-20 15:00:00")
+  - adjust (不复权/qfq/hfq)
+- **响应**: 分时K线数据（使用akshare stock_zh_a_hist_min_em接口）
+
+#### 6.2.8 概念板块相关
+
+**GET /api/sector/concept/list**
+- **描述**: 获取所有概念板块列表
+- **请求参数**: 无
+- **响应**: 概念板块名称列表
+
+**GET /api/sector/concept/index**
+- **描述**: 获取概念板块指数数据
+- **请求参数**: 
+  - symbol (概念板块名称)
+  - start_date (格式: "20200101")
+  - end_date (格式: "20250228")
+- **响应**: 板块指数K线数据（使用akshare stock_board_concept_index_ths接口）
+
 ### 6.3 错误码定义
 - 200: 成功
 - 400: 请求参数错误
@@ -540,24 +865,76 @@ CREATE TABLE sector_indicators (
 ### 7.1 数据采集模块 (Data Collection Module)
 
 **功能职责:**
-- 从新浪财经获取股票实时和历史数据
+- 使用akshare获取股票实时和历史数据
+- 获取公司基本信息、财务指标
+- 获取大盘资金流向和市场活跃度数据
+- 获取涨停股池数据
+- 获取概念板块数据
 - 爬取财经新闻
 - 定时任务调度
 - 数据清洗和验证
 
 **核心类:**
 ```python
+import akshare as ak
+
 class StockDataFetcher:
-    """股票数据获取器"""
-    def fetch_kline_data(code, kline_type, start_date, end_date)
-    def fetch_realtime_data(code)
-    def fetch_index_data(index_code)
+    """股票数据获取器 - 基于akshare"""
+    def fetch_kline_data(code, kline_type, start_date, end_date):
+        """获取K线数据 - 使用stock_zh_a_hist接口"""
+        return ak.stock_zh_a_hist(
+            symbol=code,
+            period=kline_type,
+            start_date=start_date,
+            end_date=end_date
+        )
+    
+    def fetch_intraday_data(code, period, start_date, end_date, adjust=''):
+        """获取分时数据 - 使用stock_zh_a_hist_min_em接口"""
+        return ak.stock_zh_a_hist_min_em(
+            symbol=code,
+            start_date=start_date,
+            end_date=end_date,
+            period=str(period),
+            adjust=adjust
+        )
+    
+    def fetch_company_info(self, code):
+        """获取公司基本信息 - 使用stock_individual_basic_info_xq接口"""
+        return ak.stock_individual_basic_info_xq(symbol=code)
+    
+    def fetch_financial_indicators(self, code, indicator='按报告期'):
+        """获取财务指标 - 使用stock_financial_abstract_new_ths接口"""
+        return ak.stock_financial_abstract_new_ths(
+            symbol=code,
+            indicator=indicator
+        )
+
+class MarketDataFetcher:
+    """大盘数据获取器 - 基于akshare"""
+    def fetch_fund_flow(self):
+        """获取大盘资金流向 - 使用stock_market_fund_flow接口"""
+        return ak.stock_market_fund_flow()
+    
+    def fetch_market_activity(self):
+        """获取市场活跃度 - 使用stock_market_activity_legu接口"""
+        return ak.stock_market_activity_legu()
+
+class LimitUpStockFetcher:
+    """涨停股池获取器 - 基于akshare"""
+    def fetch_limit_up_pool(self, date):
+        """获取涨停股池 - 使用stock_zt_pool_em接口"""
+        return ak.stock_zt_pool_em(date=date)
 
 class SectorDataFetcher:
-    """板块数据获取器"""
-    def fetch_sector_list(stock_code)
-    def fetch_sector_kline_data(sector_code, kline_type, start_date, end_date)
-    def fetch_sector_indicators(sector_code, kline_type)
+    """板块数据获取器 - 基于akshare"""
+    def fetch_concept_sector_index(self, symbol, start_date, end_date):
+        """获取概念板块指数 - 使用stock_board_concept_index_ths接口"""
+        return ak.stock_board_concept_index_ths(
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date
+        )
 
 class NewsCrawler:
     """新闻爬虫"""
@@ -968,6 +1345,68 @@ def calculate_kdj(highs, lows, closes, n=9, m1=3, m2=3):
 
 ### 8.2 大盘情绪数据获取
 
+**使用akshare获取市场活跃度数据:**
+```python
+import akshare as ak
+import pandas as pd
+
+class MarketDataFetcher:
+    """市场数据获取器"""
+    
+    def fetch_market_activity(self):
+        """获取市场活跃度 - 使用stock_market_activity_legu接口"""
+        try:
+            df = ak.stock_market_activity_legu()
+            # 转换为字典格式
+            activity_data = df.set_index('item')['value'].to_dict()
+            
+            return {
+                'rise_count': int(activity_data.get('上涨', 0)),
+                'limit_up_count': int(activity_data.get('涨停', 0)),
+                'real_limit_up_count': int(activity_data.get('真实涨停', 0)),
+                'st_limit_up_count': int(activity_data.get('st st*涨停', 0)),
+                'fall_count': int(activity_data.get('下跌', 0)),
+                'limit_down_count': int(activity_data.get('跌停', 0)),
+                'real_limit_down_count': int(activity_data.get('真实跌停', 0)),
+                'st_limit_down_count': int(activity_data.get('st st*跌停', 0)),
+                'flat_count': int(activity_data.get('平盘', 0)),
+                'suspend_count': int(activity_data.get('停牌', 0)),
+                'activity_level': activity_data.get('活跃度', ''),
+                'stat_time': activity_data.get('统计日期', '')
+            }
+        except Exception as e:
+            print(f"获取市场活跃度失败: {e}")
+            return None
+    
+    def fetch_fund_flow(self):
+        """获取大盘资金流向 - 使用stock_market_fund_flow接口"""
+        try:
+            df = ak.stock_market_fund_flow()
+            # 获取最新一天的数据
+            latest_data = df.iloc[0]
+            
+            return {
+                'trade_date': latest_data.get('日期', ''),
+                'sh_close_price': latest_data.get('上证-收盘价', 0),
+                'sh_change_pct': latest_data.get('上证-涨跌幅', 0),
+                'sz_close_price': latest_data.get('深证-收盘价', 0),
+                'sz_change_pct': latest_data.get('深证-涨跌幅', 0),
+                'main_net_inflow': latest_data.get('主力净流入-净额', 0),
+                'main_net_inflow_ratio': latest_data.get('主力净流入-净占比', 0),
+                'super_large_net_inflow': latest_data.get('超大单净流入-净额', 0),
+                'super_large_net_inflow_ratio': latest_data.get('超大单净流入-净占比', 0),
+                'large_net_inflow': latest_data.get('大单净流入-净额', 0),
+                'large_net_inflow_ratio': latest_data.get('大单净流入-净占比', 0),
+                'medium_net_inflow': latest_data.get('中单净流入-净额', 0),
+                'medium_net_inflow_ratio': latest_data.get('中单净流入-净占比', 0),
+                'small_net_inflow': latest_data.get('小单净流入-净额', 0),
+                'small_net_inflow_ratio': latest_data.get('小单净流入-净占比', 0)
+            }
+        except Exception as e:
+            print(f"获取资金流向失败: {e}")
+            return None
+```
+
 **情绪指标计算:**
 ```python
 def calculate_market_sentiment():
@@ -996,6 +1435,163 @@ def calculate_market_sentiment():
 ```
 
 ### 8.3 新闻爬虫实现
+
+**股票数据获取示例 - 使用akshare:**
+```python
+import akshare as ak
+
+class StockDataFetcher:
+    """股票数据获取器"""
+    
+    def fetch_kline_data(self, code, kline_type='daily', start_date='20200101', end_date='20241231', adjust=''):
+        """
+        获取K线数据 - 使用stock_zh_a_hist接口
+        :param code: 股票代码，如 '000001'
+        :param kline_type: 周期类型 'daily'/'weekly'/'monthly'
+        :param start_date: 开始日期，格式 '20200101'
+        :param end_date: 结束日期，格式 '20241231'
+        :param adjust: 复权类型 ''/'qfq'/'hfq'
+        :return: DataFrame
+        """
+        try:
+            df = ak.stock_zh_a_hist(
+                symbol=code,
+                period=kline_type,
+                start_date=start_date,
+                end_date=end_date,
+                adjust=adjust
+            )
+            return df
+        except Exception as e:
+            print(f"获取K线数据失败: {e}")
+            return None
+    
+    def fetch_company_info(self, code):
+        """
+        获取公司基本信息 - 使用stock_individual_basic_info_xq接口
+        :param code: 股票代码，如 'SH601127'
+        :return: dict
+        """
+        try:
+            df = ak.stock_individual_basic_info_xq(symbol=code)
+            # 转换为字典格式
+            company_info = df.set_index('item')['value'].to_dict()
+            
+            return {
+                'stock_code': code,
+                'short_name': company_info.get('org_short_name_cn', ''),
+                'main_business': company_info.get('main_operation_business', ''),
+                'company_intro': company_info.get('org_short_name_cn', ''),
+            }
+        except Exception as e:
+            print(f"获取公司信息失败: {e}")
+            return None
+    
+    def fetch_financial_indicators(self, code, indicator='按报告期'):
+        """
+        获取财务指标 - 使用stock_financial_abstract_new_ths接口
+        :param code: 股票代码，如 '000063'
+        :param indicator: 指标类型 '按报告期'/'一季度'/'二季度'/'三季度'/'四季度'/'按年度'
+        :return: DataFrame
+        """
+        try:
+            df = ak.stock_financial_abstract_new_ths(
+                symbol=code,
+                indicator=indicator
+            )
+            return df
+        except Exception as e:
+            print(f"获取财务指标失败: {e}")
+            return None
+    
+    def fetch_intraday_data(self, code, period='5', start_date='2024-03-20 09:30:00', 
+                           end_date='2024-03-20 15:00:00', adjust=''):
+        """
+        获取分时数据 - 使用stock_zh_a_hist_min_em接口
+        :param code: 股票代码，如 '000001'
+        :param period: 周期 '1'/'5'/'15'/'30'/'60'
+        :param start_date: 开始时间，格式 '2024-03-20 09:30:00'
+        :param end_date: 结束时间，格式 '2024-03-20 15:00:00'
+        :param adjust: 复权类型 ''/'qfq'/'hfq'
+        :return: DataFrame
+        """
+        try:
+            df = ak.stock_zh_a_hist_min_em(
+                symbol=code,
+                start_date=start_date,
+                end_date=end_date,
+                period=period,
+                adjust=adjust
+            )
+            return df
+        except Exception as e:
+            print(f"获取分时数据失败: {e}")
+            return None
+
+
+class LimitUpStockFetcher:
+    """涨停股池获取器"""
+    
+    def fetch_limit_up_pool(self, date='20241008'):
+        """
+        获取涨停股池 - 使用stock_zt_pool_em接口
+        :param date: 日期，格式 '20241008'
+        :return: DataFrame
+        """
+        try:
+            df = ak.stock_zt_pool_em(date=date)
+            return df
+        except Exception as e:
+            print(f"获取涨停股池失败: {e}")
+            return None
+    
+    def analyze_limit_up_pool(self, date):
+        """
+        分析涨停股池
+        :param date: 日期
+        :return: 分析结果
+        """
+        df = self.fetch_limit_up_pool(date)
+        if df is None or df.empty:
+            return None
+        
+        # 分析行业分布
+        industry_stats = df['所属行业'].value_counts().to_dict()
+        
+        # 分析连板情况
+        continuous_stats = df['连板数'].value_counts().sort_index().to_dict()
+        
+        return {
+            'total_count': len(df),
+            'industry_distribution': industry_stats,
+            'continuous_limit_stats': continuous_stats,
+            'avg_turnover_rate': df['换手率'].mean(),
+            'avg_market_value': df['总市值'].mean()
+        }
+
+
+class SectorDataFetcher:
+    """板块数据获取器"""
+    
+    def fetch_concept_sector_index(self, symbol, start_date='20200101', end_date='20250228'):
+        """
+        获取概念板块指数 - 使用stock_board_concept_index_ths接口
+        :param symbol: 概念板块名称，如 '阿里巴巴概念'
+        :param start_date: 开始日期，格式 '20200101'
+        :param end_date: 结束日期，格式 '20250228'
+        :return: DataFrame
+        """
+        try:
+            df = ak.stock_board_concept_index_ths(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date
+            )
+            return df
+        except Exception as e:
+            print(f"获取概念板块指数失败: {e}")
+            return None
+```
 
 **新浪财经新闻爬取示例:**
 ```python
@@ -1375,6 +1971,7 @@ def validate_stock_code(func):
 - TA-Lib: https://ta-lib.github.io/ta-lib-python/
 
 **数据源:**
+- akshare: https://akshare.akfamily.xyz/ - Python金融数据接口库
 - 新浪财经: https://finance.sina.com.cn/
 - 东方财富: https://www.eastmoney.com/
 
@@ -1407,7 +2004,24 @@ def validate_stock_code(func):
 
 | 版本 | 日期 | 修改内容 | 修改人 |
 |------|------|---------|--------|
+| v1.1 | 2025-01-21 | 集成akshare数据源，添加8个akshare接口支持 | - |
 | v1.0 | 2025-01-20 | 初始版本创建 | - |
+
+**v1.1 版本更新内容：**
+1. 数据源更新：将新浪财经替换为akshare作为主要数据源
+2. 新增功能模块：
+   - 大盘资金流向分析（stock_market_fund_flow）
+   - 市场活跃度分析（stock_market_activity_legu）
+   - 个股公司基本信息获取（stock_individual_basic_info_xq）
+   - 个股财务指标分析（stock_financial_abstract_new_ths）
+   - 涨停股池数据获取（stock_zt_pool_em）
+   - 个股分时数据分析（stock_zh_a_hist_min_em）
+   - 概念板块指数获取（stock_board_concept_index_ths）
+3. 新增数据库表：7个新表用于存储新增数据
+4. 新增API接口：15个新接口支持新功能
+5. 更新数据采集模块：添加5个基于akshare的数据获取类
+6. 新增实现示例：完整的akshare接口调用示例代码
+7. 更新技术栈：添加akshare作为核心数据采集工具
 
 ---
 
