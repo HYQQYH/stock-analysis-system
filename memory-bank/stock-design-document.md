@@ -43,18 +43,16 @@
 ### 2.2 功能二：个股分析
 **功能描述：**
 - 根据股票编码获取近期日K、周K、月K成交数据
-- 获取该股票所属的所有板块信息
-- 获取所选板块的日K、周K、月K成交数据（支持多板块）
 - 计算个股MACD、KDJ等技术指标
 - 从新浪财经获取个股相关新闻
 - 获取上证指数数据和大盘情绪数据作为参考
-- 整合所有数据（个股、板块、大盘、新闻）输入AI模型，生成分析结论
+- 支持手动输入板块名称（可选），如输入则获取该板块的日K、周K、月K成交数据
+- 整合所有数据（个股、可选板块、大盘、新闻）输入AI模型，生成分析结论
 
 **输入数据：**
 - 股票编码（如：600000）
 - 个股历史K线数据 - 使用akshare的`stock_zh_a_hist`接口获取
-- 个股所属板块列表 - 使用akshare的板块相关接口获取
-- 所选板块的K线数据（日K、周K、月K）- 使用akshare的`stock_board_concept_index_ths`接口获取
+- 板块名称（可选，手动输入）- 如输入板块名称，则使用akshare的`stock_board_concept_index_ths`接口获取该板块K线数据
 - 个股基本信息 - 使用akshare的`stock_individual_basic_info_xq`接口获取
 - 个股财务指标 - 使用akshare的`stock_financial_abstract_new_ths`接口获取
 - 个股分时数据 - 使用akshare的`stock_zh_a_hist_min_em`接口获取
@@ -66,9 +64,8 @@
 
 **输出结果：**
 - 个股技术指标数据
-- 板块列表及各板块K线数据
-- 板块技术指标数据
-- 综合分析报告（包含个股和板块对比分析）
+- 所选板块（如有）的K线数据和技术指标数据
+- 综合分析报告（包含个股分析，如选择板块则包含板块对比分析）
 
 ---
 
@@ -164,13 +161,13 @@
 **界面功能模块：**
 1. **股票分析查询页**
    - 股票编码输入框
-   - 板块选择下拉框（支持选择多个板块进行对比）
+   - 板块名称输入框（可选，手动输入板块名称进行对比分析）
    - K线类型选择（日K/周K/月K）
    - 分析按钮
    - 分析结果展示区
      - 个股K线图和技术指标
-     - 所选板块K线图和技术指标
-     - 个股与板块对比分析
+     - 所选板块（如有）的K线图和技术指标
+     - 个股与板块对比分析（如选择板块）
    - 历史分析记录查看
 
 2. **大盘分析页**
@@ -195,12 +192,13 @@
    - 涨停股票详情（封板时间、炸板次数、连板数等）
    - 涨停股票所属行业分布
 
-**板块选择功能说明：**
-- 当用户输入股票编码后，系统自动获取该股票所属的所有板块
-- 前端显示板块下拉列表，包含所有关联板块
-- 用户可从下拉框中选择一个或多个板块进行对比分析
+**板块输入功能说明：**
+- 用户可选择性地输入一个或多个板块名称进行对比分析
+- 板块输入为可选字段，不输入时仅分析个股
+- 支持输入多个板块名称，用逗号分隔
+- 如输入板块名称，系统将获取该板块的K线数据和技术指标
 - 支持切换日K、周K、月K查看不同周期的板块走势
-- 系统展示选中板块的K线图、技术指标以及与个股的对比分析
+- 系统展示所选板块的K线图、技术指标以及与个股的对比分析
 
 ---
 
@@ -650,10 +648,11 @@ CREATE TABLE concept_sector_index (
   {
     "stock_code": "600000",
     "kline_type": "day",
-    "selected_sectors": ["BK0001", "BK0002"],
+    "sector_names": ["银行板块", "金融科技"],
     "include_news": true
   }
   ```
+  说明：sector_names为可选字段，不输入时仅分析个股
 - **响应**:
   ```json
   {
@@ -668,7 +667,6 @@ CREATE TABLE concept_sector_index (
       },
       "sectors": [
         {
-          "sector_code": "BK0001",
           "sector_name": "银行板块",
           "kline_data": [...],
           "indicators": {
@@ -1134,27 +1132,18 @@ src/
 function StockAnalysisPage() {
   const [stockCode, setStockCode] = useState('');
   const [klineType, setKlineType] = useState('day');
-  const [sectors, setSectors] = useState([]);
-  const [selectedSectors, setSelectedSectors] = useState([]);
+  const [sectorNames, setSectorNames] = useState(''); // 板块名称，可选
   const [analysisResult, setAnalysisResult] = useState(null);
   const [historyList, setHistoryList] = useState([]);
   
-  // 当股票代码输入后，获取所属板块
-  const handleStockCodeChange = async (code) => {
-    setStockCode(code);
-    if (code.length === 6) {
-      const sectorList = await fetchStockSectors(code);
-      setSectors(sectorList);
-      // 默认选择第一个板块
-      setSelectedSectors([sectorList[0]?.sector_code]);
-    }
-  };
-  
   const handleAnalyze = async () => {
+    // 解析板块名称（支持逗号分隔的多个板块）
+    const sectorList = sectorNames ? sectorNames.split(',').map(s => s.trim()) : [];
+    
     const result = await analyzeStock({
       stock_code: stockCode,
       kline_type: klineType,
-      selected_sectors: selectedSectors,
+      sector_names: sectorList,
       include_news: true
     });
     setAnalysisResult(result);
@@ -1165,7 +1154,7 @@ function StockAnalysisPage() {
     <div>
       <StockInput 
         value={stockCode} 
-        onChange={handleStockCodeChange}
+        onChange={setStockCode}
         onAnalyze={handleAnalyze}
       />
       
@@ -1180,15 +1169,12 @@ function StockAnalysisPage() {
         ]}
       />
       
-      {/* 板块选择下拉框 */}
-      {sectors.length > 0 && (
-        <SectorSelector 
-          sectors={sectors}
-          selectedSectors={selectedSectors}
-          onChange={setSelectedSectors}
-          multiple={true}
-        />
-      )}
+      {/* 板块名称输入框（可选） */}
+      <SectorNameInput 
+        value={sectorNames}
+        onChange={setSectorNames}
+        placeholder="输入板块名称（可选），多个板块用逗号分隔，如：银行板块,金融科技"
+      />
       
       {analysisResult && (
         <>
@@ -1198,7 +1184,7 @@ function StockAnalysisPage() {
           
           {/* 选中板块的K线图和技术指标 */}
           {analysisResult.sectors?.map((sector) => (
-            <div key={sector.sector_code}>
+            <div key={sector.sector_name}>
               <h3>{sector.sector_name}</h3>
               <KLineChart data={sector.kline_data} />
               <IndicatorDisplay indicators={sector.indicators} />
@@ -1214,25 +1200,16 @@ function StockAnalysisPage() {
   );
 }
 
-// 板块选择组件示例
-function SectorSelector({ sectors, selectedSectors, onChange, multiple = false }) {
+// 板块名称输入组件示例
+function SectorNameInput({ value, onChange, placeholder }) {
   return (
-    <select
-      multiple={multiple}
-      value={selectedSectors}
-      onChange={(e) => {
-        const selected = multiple 
-          ? Array.from(e.target.selectedOptions, option => option.value)
-          : e.target.value;
-        onChange(selected);
-      }}
-    >
-      {sectors.map(sector => (
-        <option key={sector.sector_code} value={sector.sector_code}>
-          {sector.sector_name} ({sector.sector_type})
-        </option>
-      ))}
-    </select>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="sector-input"
+    />
   );
 }
 ```
@@ -2004,8 +1981,24 @@ def validate_stock_code(func):
 
 | 版本 | 日期 | 修改内容 | 修改人 |
 |------|------|---------|--------|
+| v1.2 | 2026-01-21 | 功能二个股分析调整：取消自动获取个股所属板块，改为手动输入板块名称（可选） | - |
 | v1.1 | 2025-01-21 | 集成akshare数据源，添加8个akshare接口支持 | - |
 | v1.0 | 2025-01-20 | 初始版本创建 | - |
+
+**v1.2 版本更新内容：**
+1. 功能二（个股分析）调整：
+   - 移除自动获取个股所属板块的功能
+   - 将前端板块选择下拉框改为板块名称手动输入框（可选）
+   - 支持用户手动输入一个或多个板块名称进行对比分析
+   - 板块输入为可选字段，不输入时仅分析个股
+2. API接口更新：
+   - POST /api/analyze/stock 接口参数从 selected_sectors 改为 sector_names
+   - sector_names 为可选参数，不提供时仅分析个股
+3. 前端组件更新：
+   - 移除 SectorSelector 下拉选择组件
+   - 新增 SectorNameInput 手动输入组件
+   - 支持逗号分隔的多个板块名称输入
+4. 提示词模板更新：调整个股分析模板，适应可选板块分析模式
 
 **v1.1 版本更新内容：**
 1. 数据源更新：将新浪财经替换为akshare作为主要数据源
@@ -2018,11 +2011,3 @@ def validate_stock_code(func):
    - 个股分时数据分析（stock_zh_a_hist_min_em）
    - 概念板块指数获取（stock_board_concept_index_ths）
 3. 新增数据库表：7个新表用于存储新增数据
-4. 新增API接口：15个新接口支持新功能
-5. 更新数据采集模块：添加5个基于akshare的数据获取类
-6. 新增实现示例：完整的akshare接口调用示例代码
-7. 更新技术栈：添加akshare作为核心数据采集工具
-
----
-
-**文档结束**
