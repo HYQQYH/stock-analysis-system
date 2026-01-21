@@ -64,8 +64,7 @@
 
 **输出结果：**
 - 个股技术指标数据
-- 所选板块（如有）的K线数据和技术指标数据
-- 综合分析报告（包含个股分析，如选择板块则包含板块对比分析）
+- 综合分析报告（板块数据仅作为AI分析的输入，用于提供板块背景信息）
 
 ---
 
@@ -161,13 +160,12 @@
 **界面功能模块：**
 1. **股票分析查询页**
    - 股票编码输入框
-   - 板块名称输入框（可选，手动输入板块名称进行对比分析）
+   - 板块名称输入框（可选，用于提供板块背景信息）
    - K线类型选择（日K/周K/月K）
    - 分析按钮
    - 分析结果展示区
      - 个股K线图和技术指标
-     - 所选板块（如有）的K线图和技术指标
-     - 个股与板块对比分析（如选择板块）
+     - AI分析报告（包含对个股的综合分析，板块数据作为背景参考）
    - 历史分析记录查看
 
 2. **大盘分析页**
@@ -193,12 +191,12 @@
    - 涨停股票所属行业分布
 
 **板块输入功能说明：**
-- 用户可选择性地输入一个或多个板块名称进行对比分析
+- 用户可选择性地输入一个或多个板块名称作为分析参考
 - 板块输入为可选字段，不输入时仅分析个股
 - 支持输入多个板块名称，用逗号分隔
 - 如输入板块名称，系统将获取该板块的K线数据和技术指标
-- 支持切换日K、周K、月K查看不同周期的板块走势
-- 系统展示所选板块的K线图、技术指标以及与个股的对比分析
+- 板块数据仅作为AI分析的输入，用于提供板块背景信息
+- 前端不展示板块K线图、技术指标及对比分析
 
 ---
 
@@ -665,16 +663,6 @@ CREATE TABLE concept_sector_index (
         "macd": [...],
         "kdj": [...]
       },
-      "sectors": [
-        {
-          "sector_name": "银行板块",
-          "kline_data": [...],
-          "indicators": {
-            "macd": [...],
-            "kdj": [...]
-          }
-        }
-      ],
       "analysis_result": "...",
       "recommendation": "买入",
       "sentiment_score": 75.5
@@ -727,10 +715,7 @@ CREATE TABLE concept_sector_index (
   }
   ```
 
-**GET /api/sector/{code}/kline**
-- **描述**: 获取板块K线数据
-- **请求参数**: type (day/week/month), start_date, end_date
-- **响应**: 板块K线数据数组
+<!-- 板块K线的公共展示接口已移除：前端不再单独请求或展示板块K线/对比视图 -->
 
 #### 6.2.3 新闻相关
 
@@ -834,20 +819,7 @@ CREATE TABLE concept_sector_index (
   - adjust (不复权/qfq/hfq)
 - **响应**: 分时K线数据（使用akshare stock_zh_a_hist_min_em接口）
 
-#### 6.2.8 概念板块相关
-
-**GET /api/sector/concept/list**
-- **描述**: 获取所有概念板块列表
-- **请求参数**: 无
-- **响应**: 概念板块名称列表
-
-**GET /api/sector/concept/index**
-- **描述**: 获取概念板块指数数据
-- **请求参数**: 
-  - symbol (概念板块名称)
-  - start_date (格式: "20200101")
-  - end_date (格式: "20250228")
-- **响应**: 板块指数K线数据（使用akshare stock_board_concept_index_ths接口）
+<!-- 概念板块的公开查询接口已移除：前端不再直接请求概念板块指数或列表用于显示。板块数据仍可作为后端或AI分析的输入来源。 -->
 
 ### 6.3 错误码定义
 - 200: 成功
@@ -1044,12 +1016,6 @@ KDJ: {stock_kdj_data}
 该股票所属板块:
 {sector_list}
 
-【选中板块分析】
-{sector_analysis}
-
-【板块技术指标对比】
-{sector_indicators_comparison}
-
 【相关新闻】
 {related_news}
 
@@ -1058,14 +1024,12 @@ KDJ: {stock_kdj_data}
 
 请从以下维度进行分析:
 1. 技术面分析（个股指标信号、趋势判断）
-2. 板块对比分析（个股相对所属板块的表现）
-3. 板块强弱分析（板块技术指标和趋势）
-4. 基本面信息（结合新闻）
-5. 相对大盘表现
-6. 风险评估
-7. 投资建议（买入/持有/卖出/观望，目标价位）
+2. 基本面信息（结合新闻）
+3. 相对大盘表现
+4. 风险评估
+5. 投资建议（买入/持有/卖出/观望，目标价位）
 
-请给出专业、客观的分析结论，重点分析该股票在所属板块中的位置和表现。
+请给出专业、客观的分析结论（板块信息仅作为背景输入，不单独输出板块对比或板块分析视图）。
 ```
 
 ### 7.4 Web服务模块 (Web Service Module)
@@ -1178,18 +1142,10 @@ function StockAnalysisPage() {
       
       {analysisResult && (
         <>
+
           {/* 个股K线图和技术指标 */}
           <KLineChart data={analysisResult.stock_kline_data} />
           <IndicatorDisplay indicators={analysisResult.stock_indicators} />
-          
-          {/* 选中板块的K线图和技术指标 */}
-          {analysisResult.sectors?.map((sector) => (
-            <div key={sector.sector_name}>
-              <h3>{sector.sector_name}</h3>
-              <KLineChart data={sector.kline_data} />
-              <IndicatorDisplay indicators={sector.indicators} />
-            </div>
-          ))}
           
           {/* AI分析结果 */}
           <AnalysisResult content={analysisResult.analysis_result} />
@@ -1199,19 +1155,9 @@ function StockAnalysisPage() {
     </div>
   );
 }
+```
 
-// 板块名称输入组件示例
-function SectorNameInput({ value, onChange, placeholder }) {
-  return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="sector-input"
-    />
-  );
-}
+### 7.6 数据持久化模块 (Database Module)
 ```
 
 ### 7.6 数据持久化模块 (Database Module)
@@ -1989,7 +1935,7 @@ def validate_stock_code(func):
 1. 功能二（个股分析）调整：
    - 移除自动获取个股所属板块的功能
    - 将前端板块选择下拉框改为板块名称手动输入框（可选）
-   - 支持用户手动输入一个或多个板块名称进行对比分析
+  - 支持用户手动输入一个或多个板块名称作为背景输入（不在前端展示板块对比）
    - 板块输入为可选字段，不输入时仅分析个股
 2. API接口更新：
    - POST /api/analyze/stock 接口参数从 selected_sectors 改为 sector_names
