@@ -44,7 +44,7 @@
 **功能描述：**
 - 根据股票编码获取近期日K、周K、月K成交数据
 - 计算个股MACD、KDJ等技术指标
-- 从新浪财经获取个股相关新闻
+- 获取个股相关新闻（优先使用 akshare 的 `stock_news_em` 接口获取）
 - 获取上证指数数据和大盘情绪数据作为参考
 - 支持手动输入板块名称（可选），如输入则获取该板块的日K、周K、月K成交数据
 - 整合所有数据（个股、可选板块、大盘、新闻）输入AI模型，生成分析结论
@@ -56,7 +56,8 @@
 - 个股基本信息 - 使用akshare的`stock_individual_basic_info_xq`接口获取
 - 个股财务指标 - 使用akshare的`stock_financial_abstract_new_ths`接口获取
 - 个股分时数据 - 使用akshare的`stock_zh_a_hist_min_em`接口获取
-- 个股相关新闻
+- 个股相关新闻 - 使用 akshare 的 `stock_news_em` 接口获取（示例：`ak.stock_news_em(symbol="603777")`）。该接口返回指定 `symbol` 当日最近 100 条相关新闻，返回结构为 `pandas.DataFrame`，常见字段包括：关键词、新闻标题、新闻内容、发布时间、文章来源、新闻链接。
+  注意：akshare 的接口返回类型通常为 `pd.DataFrame` 或 `pd.Series`，在系统中以 `pandas.DataFrame` 为标准进行处理。
 - 上证指数数据
 - 大盘资金流向和市场活跃度数据
 - 每日涨停股池数据 - 使用akshare的`stock_zt_pool_em`接口获取
@@ -160,12 +161,12 @@
 **界面功能模块：**
 1. **股票分析查询页**
    - 股票编码输入框
-   - 板块名称输入框（可选，用于提供板块背景信息）
+   - 板块名称输入框（可选，用于关联个股数据进行综合分析）
    - K线类型选择（日K/周K/月K）
    - 分析按钮
    - 分析结果展示区
      - 个股K线图和技术指标
-     - AI分析报告（包含对个股的综合分析，板块数据作为背景参考）
+     - AI分析报告
    - 历史分析记录查看
 
 2. **大盘分析页**
@@ -180,22 +181,15 @@
    - 新闻详情查看
    - 投资建议展示
 
-4. **资金流向页**
-   - 大盘资金流向图表
-   - 主力、超大单、大单、中单、小单资金流向对比
-   - 历史资金流向数据查询
-
-5. **涨停板页**
+4. **涨停板页**
    - 每日涨停股票列表
    - 涨停股票详情（封板时间、炸板次数、连板数等）
    - 涨停股票所属行业分布
 
 **板块输入功能说明：**
-- 用户可选择性地输入一个或多个板块名称作为分析参考
-- 板块输入为可选字段，不输入时仅分析个股
-- 支持输入多个板块名称，用逗号分隔
+- 板块输入为可选字段，不输入时使用其他信息分析个股
 - 如输入板块名称，系统将获取该板块的K线数据和技术指标
-- 板块数据仅作为AI分析的输入，用于提供板块背景信息
+- 板块数据仅作为大模型prompt的可选部分
 - 前端不展示板块K线图、技术指标及对比分析
 
 ---
@@ -247,10 +241,10 @@
 - MySQL：持久化存储分析历史、新闻数据
 - Redis：缓存热点数据、会话管理
 
-**外部集成：**
-- akshare库：获取股票数据、K线数据、财务指标、涨停股池、资金流向等
-- 财经网站API：获取新闻资讯
-- LLM服务：AI分析能力（如OpenAI、通义千问、文心一言等）
+ **外部集成：**
+ - akshare库：获取股票数据、K线数据、财务指标、涨停股池、资金流向等；同时可通过 `stock_news_em` 等接口获取个股相关新闻（示例：`ak.stock_news_em(symbol="603777")`），akshare 接口返回 `pd.DataFrame` 或 `pd.Series`。
+ - 财经网站API：获取新闻资讯
+- LLM服务：AI分析能力（如OpenAI、通义千问、文心一言、智谱GLM等）
 
 ---
 
@@ -339,6 +333,8 @@ CREATE TABLE stock_kline_data (
     close_price DECIMAL(10,2) NOT NULL COMMENT '收盘价',
     volume BIGINT NOT NULL COMMENT '成交量',
     amount DECIMAL(20,2) NOT NULL COMMENT '成交额',
+    percentage_change DECIMAL(10,2) NOT NULL COMMENT '涨跌幅',
+    turnover DECIMAL(10,2) NOT NULL COMMENT '换手率',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_kline (stock_code, kline_type, trade_date),
     INDEX idx_trade_date (trade_date)
@@ -407,34 +403,7 @@ CREATE TABLE market_sentiment (
 ) COMMENT='大盘情绪数据表';
 ```
 
-#### 5.1.7 板块信息表 (sector_info)
-```sql
-CREATE TABLE sector_info (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
-    sector_name VARCHAR(100) NOT NULL COMMENT '板块名称',
-    sector_type VARCHAR(20) COMMENT '板块类型: 行业/概念/地域等',
-    description TEXT COMMENT '板块描述',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_sector_code (sector_code)
-) COMMENT='板块信息表';
-```
-
-#### 5.1.8 股票板块关联表 (stock_sector_relation)
-```sql
-CREATE TABLE stock_sector_relation (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
-    sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_stock_sector (stock_code, sector_code),
-    INDEX idx_stock_code (stock_code),
-    INDEX idx_sector_code (sector_code)
-) COMMENT='股票板块关联表';
-```
-
-#### 5.1.9 板块K线数据表 (sector_kline_data)
+#### 5.1.7 板块K线数据表 (sector_kline_data)
 ```sql
 CREATE TABLE sector_kline_data (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -447,14 +416,13 @@ CREATE TABLE sector_kline_data (
     close_price DECIMAL(10,2) NOT NULL COMMENT '收盘价',
     volume BIGINT NOT NULL COMMENT '成交量',
     amount DECIMAL(20,2) NOT NULL COMMENT '成交额',
-    stock_count INT COMMENT '成分股数量',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_sector_kline (sector_code, kline_type, trade_date),
     INDEX idx_trade_date (trade_date)
 ) COMMENT='板块K线数据表';
 ```
 
-#### 5.1.10 板块技术指标数据表 (sector_indicators)
+#### 5.1.8 板块技术指标数据表 (sector_indicators)
 ```sql
 CREATE TABLE sector_indicators (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -468,7 +436,7 @@ CREATE TABLE sector_indicators (
 ) COMMENT='板块技术指标数据表';
 ```
 
-#### 5.1.11 个股公司详细信息表 (stock_company_detail)
+#### 5.1.9 个股公司详细信息表 (stock_company_detail)
 ```sql
 CREATE TABLE stock_company_detail (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -485,27 +453,8 @@ CREATE TABLE stock_company_detail (
 ) COMMENT='个股公司详细信息表 - 使用akshare stock_individual_basic_info_xq接口';
 ```
 
-#### 5.1.12 个股财务指标表 (stock_financial_indicators)
-```sql
-CREATE TABLE stock_financial_indicators (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
-    report_date DATE NOT NULL COMMENT '报告期',
-    report_name VARCHAR(50) COMMENT '报告名称',
-    report_period VARCHAR(20) COMMENT '报告期类型: 按报告期/一季度/二季度/三季度/四季度/按年度',
-    metric_name VARCHAR(100) NOT NULL COMMENT '指标名称',
-    value DECIMAL(20,4) COMMENT '指标值',
-    single_value VARCHAR(50) COMMENT '单值',
-    yoy DECIMAL(10,4) COMMENT '同比增长率',
-    mom VARCHAR(50) COMMENT '环比数据',
-    single_yoy VARCHAR(50) COMMENT '单值同比增长',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_stock_report (stock_code, report_date),
-    INDEX idx_report_date (report_date)
-) COMMENT='个股财务指标表 - 使用akshare stock_financial_abstract_new_ths接口';
-```
 
-#### 5.1.13 大盘资金流向数据表 (market_fund_flow)
+#### 5.1.10 大盘资金流向数据表 (market_fund_flow)
 ```sql
 CREATE TABLE market_fund_flow (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -529,7 +478,7 @@ CREATE TABLE market_fund_flow (
 ) COMMENT='大盘资金流向数据表 - 使用akshare stock_market_fund_flow接口';
 ```
 
-#### 5.1.14 市场活跃度数据表 (market_activity)
+#### 5.1.11 市场活跃度数据表 (market_activity)
 ```sql
 CREATE TABLE market_activity (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -551,7 +500,7 @@ CREATE TABLE market_activity (
 ) COMMENT='市场活跃度数据表 - 使用akshare stock_market_activity_legu接口';
 ```
 
-#### 5.1.15 涨停股池数据表 (limit_up_stock_pool)
+#### 5.1.12 涨停股池数据表 (limit_up_stock_pool)
 ```sql
 CREATE TABLE limit_up_stock_pool (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -578,7 +527,7 @@ CREATE TABLE limit_up_stock_pool (
 ) COMMENT='涨停股池数据表 - 使用akshare stock_zt_pool_em接口';
 ```
 
-#### 5.1.16 个股分时数据表 (stock_intraday_data)
+#### 5.1.13 个股分时数据表 (stock_intraday_data)
 ```sql
 CREATE TABLE stock_intraday_data (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -600,7 +549,7 @@ CREATE TABLE stock_intraday_data (
 ) COMMENT='个股分时数据表 - 使用akshare stock_zh_a_hist_min_em接口';
 ```
 
-#### 5.1.17 概念板块指数数据表 (concept_sector_index)
+#### 5.1.14 概念板块指数数据表 (concept_sector_index)
 ```sql
 CREATE TABLE concept_sector_index (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -692,30 +641,6 @@ CREATE TABLE concept_sector_index (
 - **请求参数**: type, indicator_names
 - **响应**: 技术指标数据
 
-**GET /api/stock/{code}/sectors**
-- **描述**: 获取股票所属的所有板块
-- **请求参数**: 无
-- **响应**: 板块列表
-  ```json
-  {
-    "code": 200,
-    "message": "success",
-    "data": [
-      {
-        "sector_code": "BK0001",
-        "sector_name": "银行板块",
-        "sector_type": "行业"
-      },
-      {
-        "sector_code": "BK0002",
-        "sector_name": "金融科技",
-        "sector_type": "概念"
-      }
-    ]
-  }
-  ```
-
-<!-- 板块K线的公共展示接口已移除：前端不再单独请求或展示板块K线/对比视图 -->
 
 #### 6.2.3 新闻相关
 
@@ -803,10 +728,6 @@ CREATE TABLE concept_sector_index (
   }
   ```
 
-**GET /api/stock/{code}/financial**
-- **描述**: 获取个股财务指标
-- **请求参数**: indicator (按报告期/一季度/二季度/三季度/四季度/按年度)
-- **响应**: 财务指标数据（使用akshare stock_financial_abstract_new_ths接口）
 
 #### 6.2.7 分时数据相关
 
@@ -819,7 +740,6 @@ CREATE TABLE concept_sector_index (
   - adjust (不复权/qfq/hfq)
 - **响应**: 分时K线数据（使用akshare stock_zh_a_hist_min_em接口）
 
-<!-- 概念板块的公开查询接口已移除：前端不再直接请求概念板块指数或列表用于显示。板块数据仍可作为后端或AI分析的输入来源。 -->
 
 ### 6.3 错误码定义
 - 200: 成功
@@ -1012,9 +932,9 @@ KDJ: {kdj_data}
 MACD: {stock_macd_data}
 KDJ: {stock_kdj_data}
 
-【所属板块信息】
+【所属板块k线数据】
 该股票所属板块:
-{sector_list}
+{sector_kline_data}
 
 【相关新闻】
 {related_news}
@@ -1337,14 +1257,16 @@ def calculate_market_sentiment():
     计算大盘情绪指标
     """
     # 获取涨跌家数
-    rise_fall = get_rise_fall_count()
+    df = ak.stock_market_activity_legu()
+    # 转换为字典格式
+    activity_data = df.set_index('item')['value'].to_dict()
     
     # 计算情绪得分
-    total_stocks = rise_fall['rise'] + rise_fall['fall'] + rise_fall['flat']
-    sentiment_score = (rise_fall['rise'] / total_stocks) * 100
+    total_stocks = int(activity_data.get('上涨', 0)) + int(activity_data.get('下跌', 0)) + int(activity_data.get('平盘', 0))
+    sentiment_score = (int(activity_data.get('上涨', 0)) / total_stocks) * 100
     
     # 计算多空比例
-    bull_bear_ratio = rise_fall['rise'] / (rise_fall['fall'] + 1)
+    bull_bear_ratio = int(activity_data.get('下跌', 0)) / (int(activity_data.get('下跌', 0)) + 1)
     
     # 获取量比
     volume_ratio = get_volume_ratio()
@@ -1356,8 +1278,6 @@ def calculate_market_sentiment():
         'volume_ratio': volume_ratio
     }
 ```
-
-### 8.3 新闻爬虫实现
 
 **股票数据获取示例 - 使用akshare:**
 ```python
@@ -1516,6 +1436,7 @@ class SectorDataFetcher:
             return None
 ```
 
+### 8.3 新闻爬虫实现
 **新浪财经新闻爬取示例:**
 ```python
 import requests
