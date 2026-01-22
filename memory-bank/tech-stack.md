@@ -132,6 +132,40 @@ ernie==0.1.0                  # 百度文心一言 SDK
 - 链式调用，业务逻辑清晰
 - 生态丰富，集成便利
 
+#### 提示词管理系统
+
+```ini
+# 提示词管理
+jinja2==3.1.2                 # 模板引擎，用于动态填充提示词
+pydantic==2.5.0               # 数据验证和序列化（提示词结构化）
+```
+
+**提示词管理架构：**
+- **提示词存储**：在 `backend/app/prompts.py` 中定义所有分析模式的提示词函数
+  - 每个分析模式对应一个 build_*_prompt() 函数
+  - 支持参数化提示词模板
+  - 内置数据格式转换（DataFrame → Markdown表格）
+  
+- **提示词版本控制**：
+  - 在函数注释中记录版本和更新日期
+  - 支持多个版本的提示词并行使用
+  
+- **输出解析**：
+  - LLM 输出结果标准化
+  - 使用 Pydantic 模型定义输出 Schema
+  - 自动校验输出是否符合预期格式
+
+**9种分析模式的提示词函数列表**：
+1. `build_analysis_prompt()` - 个股基础面技术面综合分析
+2. `market_analysis_prompt()` - 市场新闻挖掘
+3. `recommend_prompt()` - 股票推荐分析
+4. `build_guzhi_prompt()` - 公司估值分析
+5. `build_touji_prompt()` - 投机套利分析
+6. `build_fenshi_prompt()` - 分时走势分析
+7. `build_boduan_prompt()` - 波段交易分析
+8. `build_duanxian_prompt()` - 短线T+1分析
+9. `build_n1n_prompt()` - N+1+N涨停反包分析
+
 #### 异步任务调度
 
 ```ini
@@ -478,9 +512,180 @@ analysis:{code}:{type}:{date} = JSON
 # TTL：1 天
 ```
 
+## 6. AI/LLM 分析框架
+
+### 6.1 提示词管理系统
+
+基于 `prompt.py` 中定义的9种分析模式，系统需要建立完善的提示词管理体系：
+
+#### 提示词架构设计
+
+**核心特点：**
+- 每个分析模式对应一个专门的提示词生成函数
+- 支持参数化模板，动态替换数据
+- 内置数据格式转换（DataFrame → Markdown表格）
+- 严格的输出格式规范
+
+**9种分析模式的提示词系统**：
+
+| 分析模式 | 函数名 | 输入数据类型 | 输出格式 | 适用周期 |
+|---------|--------|------------|--------|---------|
+| 基础面技术面综合 | `build_analysis_prompt()` | 股票基本信息、日K(30天+)、新闻、财务 | 多段分析+交易建议 | 通用 |
+| 市场新闻挖掘 | `market_analysis_prompt()` | 新闻列表(top 10) | 3-5只推荐股票+理由 | 每日 |
+| 股票推荐分析 | `recommend_prompt()` | 股票详细信息集合 | 深入分析+建议 | 通用 |
+| 公司估值分析 | `build_guzhi_prompt()` | 基本信息、技术指标、估值方法 | 估值结果+涨幅预测 | 长期 |
+| 投机套利分析 | `build_touji_prompt()` | 日K(14天)、周K、新闻、大盘、板块 | 买卖点+操作手法 | 短期 |
+| 分时走势分析 | `build_fenshi_prompt()` | 分时数据、日K、周K、大盘 | 日内买卖点 | 当日 |
+| 波段交易分析 | `build_boduan_prompt()` | 财务、日K(60天)、周K(26周)、大盘、板块 | 波段买卖+仓位策略 | 1-2周 |
+| 短线T+1分析 | `build_duanxian_prompt()` | 日K(14天)、周K、新闻(1-4条)、大盘、板块 | 机会评级+交易计划+监控清单 | 1-5天 |
+| N+1+N反包分析 | `build_n1n_prompt()` | 涨停信息、日K、周K、新闻、大盘、板块 | 反包概率+买卖点 | 当日 |
+
+#### 提示词模板实现
+
+**关键技术点：**
+
+```python
+# 1. 提示词函数设计原则
+- 参数化：所有动态信息作为函数参数
+- 结构化：输入数据需要标准化格式
+- 可验证：输出 Schema 需要清晰定义
+- 版本化：每个提示词需要版本号和更新日期
+
+# 2. 数据格式转换
+- DataFrame → Markdown 表格（便于 LLM 理解）
+- 技术指标 → 结构化描述
+- 新闻列表 → 摘要形式
+
+# 3. 输出解析
+- LLM 输出结果的标准化
+- 使用 Pydantic 模型定义期望的 Schema
+- 自动校验和异常处理
+```
+
+#### 提示词编写标准
+
+**必须包含的元素：**
+1. 角色定义（"你是一位...交易员"）
+2. 分析框架（多维度、多时间周期）
+3. 输入数据清单（明确的数据来源和格式）
+4. 输出格式规范（严格的结构要求）
+5. 约束条件（精确数值、避免模糊表述）
+
+**示例标准格式**（参考 `build_duanxian_prompt`）：
+
+```markdown
+【核心分析框架】
+1. 趋势定位系统
+   1.1 [具体指标说明]
+   1.2 [具体指标说明]
+
+【输出要求】
+1. 机会评级（三选一）
+2. 精确交易计划
+3. 仓位管理建议
+4. 监控清单
+
+【风险警示】
+- [具体风险提示]
+```
+
+### 6.2 LLM 集成策略
+
+#### 多模型支持
+
+```python
+# 支持的 LLM 供应商
+- OpenAI GPT-4/3.5
+- 阿里通义千问（DashScope）
+- 百度文心一言（ERNIE）
+- 智谱 GLM
+- 本地开源模型备选（如 Llama 2）
+
+# 模型选择策略
+- 首选：OpenAI GPT-4（性能最优）
+- 备选：通义千问（国内服务稳定）
+- 降级：GPT-3.5 或本地模型（成本考量）
+
+# 故障转移机制
+配置多个 API Key，当一个模型服务异常时：
+1. 快速切换到备选模型
+2. 记录切换日志，便于监控
+3. 缓存输出结果，支持离线查询
+```
+
+#### LLM 调用配置
+
+```ini
+# 调用参数建议
+temperature: 0.3-0.5           # 降低随机性，提高结果一致性
+max_tokens: 2000-4000          # 确保输出足够长
+top_p: 0.9                     # 核心采样参数
+presence_penalty: 0.1          # 避免重复
+frequency_penalty: 0.1         # 鼓励多样性
+
+# 超时和重试
+timeout: 60s
+max_retries: 3
+backoff_factor: 2
+```
+
+#### 成本优化
+
+```
+估算月度成本（基于日均 100 次分析请求）：
+- 每次平均 token 消耗：~1500 tokens（输入+输出）
+- 月度总 token：100 × 30 × 1500 = 450 万 tokens
+- OpenAI GPT-4：~¥180（按 0.04/1K tokens）
+- 通义千问：~¥45（按 0.01/1K tokens）
+
+建议方案：
+- 轻量分析用通义千问（成本低）
+- 复杂分析用 GPT-4（质量高）
+- 实现智能路由，自动选择模型
+```
+
+### 6.3 输出结果管理
+
+#### 结果 Schema 定义
+
+```python
+# 使用 Pydantic 定义输出模型
+class TradingAdvice(BaseModel):
+    direction: str              # 买入/卖出
+    target_price: float         # 目标价格
+    quantity: int               # 交易数量
+    stop_loss: float            # 止损价格
+    take_profit: float          # 止盈目标
+    holding_period: int         # 持仓天数
+    risk_level: str             # 风险等级
+    
+class AnalysisReport(BaseModel):
+    analysis_type: str          # 分析模式
+    summary: str                # 分析摘要
+    details: str                # 详细分析
+    trading_advice: TradingAdvice
+    confidence_level: float     # 信心度（0-1）
+    timestamp: datetime
+```
+
+#### 结果存储和查询
+
+```sql
+-- 分析历史记录表扩展
+ALTER TABLE analysis_history ADD COLUMN (
+    analysis_mode VARCHAR(50),      -- 分析模式（基础/波段/短线等）
+    llm_model VARCHAR(50),          -- 使用的 LLM 模型
+    prompt_version VARCHAR(10),     -- 提示词版本
+    input_hash VARCHAR(64),         -- 输入数据摘要（用于去重）
+    confidence_score DECIMAL(3,2),  -- 置信度分数
+    INDEX idx_mode (analysis_mode),
+    INDEX idx_timestamp (created_at)
+);
+```
+
 ---
 
-## 5. 外部集成技术栈
+## 7. 数据存储技术栈
 
 ### 5.1 股票数据源
 
