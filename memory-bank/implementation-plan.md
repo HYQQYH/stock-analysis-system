@@ -130,6 +130,8 @@
   - 每个表都包含主键、索引和必要的约束
   - SQL 语法符合 MySQL 8.0 标准
 
+**说明**: 预计系统日活用户（DAU）为个位数，初期可采用单实例 MySQL 配置（垂直扩展），通过合理索引和资源调优满足性能需求；分库分表、读写分离等水平扩展方案作为后续扩展选项。
+
 #### 步骤 3.2：创建 SQLAlchemy ORM 模型定义
 - **任务**: 在 `backend/app/models/` 中定义数据库 ORM 模型
   - 为每个表创建对应的 SQLAlchemy 模型类
@@ -232,15 +234,16 @@
 
 #### 步骤 5.3：实现 K 线数据管理
 - **任务**: 在 `backend/app/services/` 中创建 `kline_manager.py` K 线数据管理模块
-  - 实现方法: `save_kline_to_db(code, period, data)` - 保存 K 线数据到 MySQL
-  - 实现方法: `cache_kline_data(code, period, data)` - 缓存 K 线数据到 Redis
-  - 实现方法: `get_kline_data(code, period, days)` - 获取历史 K 线数据（优先从缓存）
-  - 实现数据去重逻辑，避免重复存储
-- **验证方法**:
-  - 编写测试用例覆盖上述三个方法
-  - 调用 save_kline_to_db 后，通过 SQL 查询验证数据已存储
+ - 实现方法: `cache_kline_data(code, period, data)` - **优先**将 K 线数据写入 Redis 缓存（缓存优先策略），并返回缓存确认
+ - 实现方法: `save_kline_to_db(code, period, data)` - 异步将缓存数据落盘到 MySQL（后台任务，避免阻塞实时请求）
+ - 实现方法: `get_kline_data(code, period, days)` - 获取历史 K 线数据（优先从 Redis 缓存，缓存未命中回退到 MySQL）
+ - 实现数据去重和一致性校验，确保 Redis 与 MySQL 最终一致（可采用输入摘要/哈希和幂等写入策略）
+ - **验证方法**:
+  - 编写测试用例覆盖上述方法
   - 调用 cache_kline_data 后，通过 Redis 命令验证数据已缓存
-  - 调用 get_kline_data 验证返回正确的数据行数和日期范围
+  - 在后台异步任务执行后，验证 MySQL 中数据已持久化（可接受延迟范围内）
+  - 验证 get_kline_data 在 Redis 可用和不可用两种场景下均能正确返回（Redis 不可用时回退到 MySQL）
+  - 验证去重逻辑和幂等性，避免重复写入
 
 #### 步骤 5.4：创建定时数据采集任务
 - **任务**: 在 `backend/app/` 中创建 `tasks.py` 定时任务模块
@@ -355,14 +358,16 @@
 
 #### 步骤 8.4：创建分析历史记录 API
 - **任务**: 在 `backend/app/api/` 中创建 `analysis.py` 路由文件
-  - 实现接口: POST /api/v1/analysis - 创建分析任务（暂不实现 AI 分析）
-  - 实现接口: GET /api/v1/analysis/{analysis_id} - 获取分析结果
-  - 实现接口: GET /api/v1/analysis/history - 获取分析历史记录
-  - 实现接口: DELETE /api/v1/analysis/{analysis_id} - 删除分析记录
-- **验证方法**:
-  - 调用 POST 接口创建分析任务，验证返回 analysis_id
-  - 调用 GET 接口查询创建的任务
-  - 调用 DELETE 接口删除任务，验证再次查询返回 404
+ - 实现接口: POST /api/v1/analysis - 创建分析任务（提交后异步执行）
+   - 行为说明：该接口应立即返回任务 ID（`analysis_id`）和初始状态（`pending`），真实分析在后台异步执行以避免阻塞请求。
+ - 实现接口: GET /api/v1/analysis/{analysis_id} - 获取分析结果或任务状态（支持轮询）
+ - 实现接口: GET /api/v1/analysis/history - 获取分析历史记录
+ - 实现接口: DELETE /api/v1/analysis/{analysis_id} - 删除分析记录
+ - **验证方法**:
+  - 调用 POST 接口创建分析任务，验证立即返回 `analysis_id` 和 `pending` 状态
+  - 在后台任务完成后，通过 GET 接口获取最终结果并验证结构化字段（analysis_result、trading_advice、confidence_score 等）
+  - 验证超时和失败场景：当后台任务在预设超时时间内未完成，GET 接口应返回失败状态及错误码（例如：`analysis_timeout`）和可读错误信息
+  - 验证轮询策略在高并发请求下的稳定性（防止频繁查询导致资源浪费）
 
 ### 4.3 业务逻辑整合
 
@@ -694,6 +699,7 @@
 ---
 
 ## 八、第13周：部署准备
+部署方式：优先采用本地部署（Docker 容器或本地启动脚本），后续根据需要再考虑云端托管或 CI/CD 自动化部署。
 
 ### 8.1 容器化和部署配置
 
