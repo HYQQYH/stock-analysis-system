@@ -6,6 +6,51 @@
 
 ---
 
+## 关键决策（用户已确认）
+
+- **MVP**: 核心 API + K 线 + 指标 + 单只股票 AI 报告（优先实现短线T+1分析）。
+- **优先分析模式**: 短线T+1 分析（作为第一阶段 AI 报告模板）。
+- **LLM 供应商**: 智谱GLM（作为首选模型，用于测试与生产）。
+- **数据保留与存储规模**: 默认保留 1 个月；当前不设置严格存储上限，可在后续按需调整。
+- **身份认证与权限**: 第一阶段不启用 JWT 或角色权限（公开 API 仅用于内部/受控环境）。
+- **测试覆盖与验收**: 必须包含关键 API 测试、数据正确性验证，以及前后端单元/集成测试（关键路径覆盖）。
+- **部署目标环境**: 优先采用 `docker-compose` 本地部署（第1版）。
+- **监控指标与初始阈值**:
+  - **API 95 百分位响应时间**: < 500ms
+  - **LLM 错误率（调用失败/异常）**: < 5%
+  - **分析任务队列长度**: < 50（超过时触发告警/降级策略）
+  - **Redis 命中率**: > 90%
+- **前端显示**: 不在前端展示板块对比（板块数据仅作为分析输入/背景）。
+- **分析 API 默认行为**: POST `/api/v1/analysis` 采用异步任务模式：接口立即返回 `analysis_id` 与初始状态（`pending`），客户端通过 GET `/api/v1/analysis/{analysis_id}` 查询结果。若需同步接口，可作为轻量版另行提供和限制输入规模。
+
+### 分析结果 Schema 示例
+
+以下为第一阶段 `analysis_history` 中保存的示例结构（供前后端对齐）：
+
+```
+{
+  "analysis_id": "<uuid>",
+  "stock_code": "600000",
+  "analysis_mode": "短线T+1",
+  "analysis_time": "2026-01-23T12:00:00Z",
+  "analysis_result": "...AI 分析文本或结构化 JSON...",
+  "trading_advice": {
+    "direction": "买入",
+    "target_price": 10.5,
+    "stop_loss": 9.5,
+    "take_profit": 12.0,
+    "holding_period": 3,
+    "risk_level": "中"
+  },
+  "confidence_score": 0.78,
+  "llm_model": "智谱GLM",
+  "prompt_version": "v1.0",
+  "input_hash": "<sha256>",
+  "status": "completed"
+}
+```
+
+
 ## 一、项目阶段划分
 
 ### 整体规划（13周）
