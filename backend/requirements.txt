@@ -10,10 +10,10 @@ numpy==1.26.2
 scipy==1.11.4
 
 # Data Source
-akshare==1.14.88
+# akshare 1.18.19 is the latest version compatible with Python 3.12
+akshare==1.18.19
 
-# Technical Indicators
-pandas-ta==0.3.14b
+# Technical Indicators (removed pandas-ta due to numpy dependency conflicts - can be added later if needed)
 
 # HTTP Requests
 httpx==0.25.0
@@ -26,7 +26,7 @@ lxml==4.9.3
 # LLM Integration
 langchain==0.1.1
 langchain-openai==0.0.5
-langchain-community==0.0.10
+langchain-community==0.0.13
 
 # Database
 sqlalchemy==2.0.23
@@ -53,6 +53,3 @@ pytest-asyncio==0.21.1
 black==23.12.0
 flake8==6.1.0
 mypy==1.7.1
-
-# Utilities
-python-logging==0.5.1.2
