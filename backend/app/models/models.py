@@ -63,7 +63,7 @@ class StockKlineData(Base):
     __tablename__ = "stock_kline_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stock_code = Column(String(10), nullable=False, index=True)
+    stock_code = Column(String(10), ForeignKey('stock_info.stock_code'), nullable=False, index=True)
     kline_type = Column(Enum(KlineTypeEnum), nullable=False)
     trade_date = Column(Date, nullable=False, index=True)
     open_price = Column(Float, nullable=False)
@@ -76,6 +76,9 @@ class StockKlineData(Base):
     turnover = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # relationship to StockInfo
+    stock = relationship('StockInfo', back_populates='kline_data')
 
     # Composite unique constraint
     __table_args__ = (
@@ -91,7 +94,7 @@ class StockIndicators(Base):
     __tablename__ = "stock_indicators"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stock_code = Column(String(10), nullable=False, index=True)
+    stock_code = Column(String(10), ForeignKey('stock_info.stock_code'), nullable=False, index=True)
     indicator_type = Column(String(20), nullable=False)
     kline_type = Column(Enum(KlineTypeEnum), nullable=False)
     trade_date = Column(Date, nullable=False, index=True)
@@ -106,6 +109,9 @@ class StockIndicators(Base):
 
     def __repr__(self):
         return f"<StockIndicators(code={self.stock_code}, type={self.indicator_type})>"
+    
+    # relationship to StockInfo
+    stock = relationship('StockInfo', back_populates='indicators')
 
 
 class AnalysisHistory(Base):
@@ -114,7 +120,7 @@ class AnalysisHistory(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     analysis_id = Column(String(36), nullable=False, unique=True, index=True)
-    stock_code = Column(String(10), nullable=False, index=True)
+    stock_code = Column(String(10), ForeignKey('stock_info.stock_code'), nullable=False, index=True)
     analysis_type = Column(Enum(AnalysisTypeEnum), nullable=False)
     analysis_mode = Column(String(50), index=True)
     analysis_time = Column(DateTime, nullable=False)
@@ -132,6 +138,9 @@ class AnalysisHistory(Base):
     error_message = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # relationship to StockInfo
+    stock = relationship('StockInfo', back_populates='analysis_history')
 
     def __repr__(self):
         return f"<AnalysisHistory(id={self.analysis_id}, code={self.stock_code}, status={self.status})>"
@@ -229,7 +238,7 @@ class LimitUpStockPool(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trade_date = Column(Date, nullable=False, index=True)
-    stock_code = Column(String(10), nullable=False, index=True)
+    stock_code = Column(String(10), ForeignKey('stock_info.stock_code'), nullable=False, index=True)
     stock_name = Column(String(50), nullable=False)
     change_pct = Column(Float)
     latest_price = Column(Float)
@@ -259,7 +268,7 @@ class StockIntradayData(Base):
     __tablename__ = "stock_intraday_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stock_code = Column(String(10), nullable=False, index=True)
+    stock_code = Column(String(10), ForeignKey('stock_info.stock_code'), nullable=False, index=True)
     trade_date = Column(Date, nullable=False, index=True)
     trade_time = Column(Time, nullable=False)
     period_type = Column(String(10), nullable=False)
@@ -280,6 +289,9 @@ class StockIntradayData(Base):
 
     def __repr__(self):
         return f"<StockIntradayData(code={self.stock_code}, date={self.trade_date}, time={self.trade_time})>"
+
+    # relationship to StockInfo
+    stock = relationship('StockInfo', back_populates='intraday_data')
 
 
 class SectorKlineData(Base):
