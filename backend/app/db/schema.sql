@@ -1,20 +1,21 @@
-"""Database Schema Definition (SQL)"""
+-- Stock Analysis System Database Schema (PostgreSQL 15)
+-- Database: stock_analysis_db
+-- Created: 2026-01-25
 
-# Stock Basic Information Table
-STOCK_INFO_TABLE = """
+-- 1. 股票基本信息表
 CREATE TABLE IF NOT EXISTS stock_info (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
-    stock_name VARCHAR(50) NOT NULL COMMENT '股票名称',
-    exchange VARCHAR(10) NOT NULL COMMENT '交易所: SH/SZ',
-    industry VARCHAR(50) COMMENT '所属行业',
+    id SERIAL PRIMARY KEY,
+    stock_code VARCHAR(10) NOT NULL UNIQUE,
+    stock_name VARCHAR(50) NOT NULL,
+    exchange VARCHAR(10),
+    industry VARCHAR(50),
+    market_cap BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_stock_code (stock_code),
-    INDEX idx_exchange (exchange),
-    INDEX idx_industry (industry)
-) COMMENT='股票基本信息表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-"""
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_code ON stock_info(stock_code);
+CREATE INDEX IF NOT EXISTS idx_industry ON stock_info(industry);
 
 # K-line Data Table
 KLINE_DATA_TABLE = """

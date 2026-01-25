@@ -1,10 +1,17 @@
-"""SQLAlchemy ORM Models for Stock Analysis System"""
+"""SQLAlchemy ORM Models for Stock Analysis System - PostgreSQL 15"""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, Time, Text, LargeBinary, Enum, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, Time, Text, LargeBinary, Enum, JSON, BigInteger, Numeric
 from sqlalchemy import Index, ForeignKey, UniqueConstraint, CheckConstraint
-from app.db.database import Base
+from sqlalchemy.orm import relationship
 import enum
+import sys
+import os
+
+# Add backend app to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from db.database import Base
 
 
 class KlineTypeEnum(str, enum.Enum):
@@ -35,10 +42,17 @@ class StockInfo(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     stock_code = Column(String(10), nullable=False, unique=True, index=True)
     stock_name = Column(String(50), nullable=False)
-    exchange = Column(String(10), nullable=False, index=True)
+    exchange = Column(String(10), index=True)
     industry = Column(String(50), index=True)
+    market_cap = Column(BigInteger)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    kline_data = relationship('StockKlineData', back_populates='stock', cascade='all, delete-orphan')
+    indicators = relationship('StockIndicators', back_populates='stock', cascade='all, delete-orphan')
+    analysis_history = relationship('AnalysisHistory', back_populates='stock', cascade='all, delete-orphan')
+    intraday_data = relationship('StockIntradayData', back_populates='stock', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f"<StockInfo(code={self.stock_code}, name={self.stock_name})>"
