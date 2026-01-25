@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 import logging
+from app.tasks import start_scheduler, stop_scheduler
+from app.api import tasks as tasks_api
 
 # Configure logging
 logging.basicConfig(level=settings.log_level)
@@ -18,9 +20,19 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events"""
     # Startup
     logger.info("Application starting up...")
+    try:
+        start_scheduler()
+        logger.info("Background scheduler started during startup")
+    except Exception:
+        logger.exception("Failed to start scheduler on startup")
     yield
     # Shutdown
     logger.info("Application shutting down...")
+    try:
+        stop_scheduler()
+        logger.info("Background scheduler stopped during shutdown")
+    except Exception:
+        logger.exception("Failed to stop scheduler on shutdown")
 
 
 # Create FastAPI application
@@ -99,6 +111,7 @@ async def general_exception_handler(request, exc):
 # app.include_router(market_router, prefix="/api/v1", tags=["market"])
 # app.include_router(analysis_router, prefix="/api/v1", tags=["analysis"])
 # app.include_router(news_router, prefix="/api/v1", tags=["news"])
+app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"]) 
 
 
 if __name__ == "__main__":

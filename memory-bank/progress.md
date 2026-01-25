@@ -38,5 +38,34 @@
 4. 将 `docker-compose-dev.yml` 的 `version` 字段移除并在 README 中记录启动命令。
 
 ---
+## 步骤 5.1-5.4：akshare 集成与数据采集（新增）
+
+### 完成的工作项
+- 在 `backend/app/services/` 中新增 `data_collector.py`（封装 akshare 调用并实现重试）
+- 新增 `kline_manager.py`（实现 Redis 缓存优先策略、DB upsert 接口 `save_kline_to_db` 与回退读取）
+- 新增 `tasks.py`（基于 APScheduler 的定时任务调度，包含市场汇总、涨停池、指数 K 线采集、缓存清理）
+- 将调度器在应用启动时启动/停止：在 `backend/app/main.py` 中集成 `start_scheduler()` / `stop_scheduler()`
+- 新增 API 路由 `backend/app/api/tasks.py`，提供手动触发任务的 HTTP 接口（collect、persist、cleanup）
+
+### 测试验证结果
+- 添加单元测试 `backend/tests/test_data_collector.py`：覆盖方法存在性、重试行为与返回 DataFrame 的基本 coercion。
+- 在本地虚拟环境中运行测试：`pytest backend/tests/test_data_collector.py` → `3 passed`。
+
+### 遇到的问题与解决方案
+- 问题：`akshare` 的某些函数签名在不同版本中存在差异，直接调用可能抛出 `TypeError`。
+	- 解决：在 `DataCollector.fetch_kline_data` 中添加兼容层（先尝试命名参数调用，失败时退回到通用调用），并通过 `_call_with_retry` 捕获并重试。
+- 问题：测试不应依赖网络或外部 akshare 服务。
+	- 解决：测试中使用 `monkeypatch` 模拟 `akshare.stock_zh_a_hist` 返回字典，确保本地测试稳定且快速。
+
+### 学到的架构洞察
+- 缓存优先（Redis）可以显著降低 DB 读取压力，但必须实现幂等的落盘策略；在本次实现中使用输入摘要与按键标记持久化状态作为简易方案。
+- 线程池（ThreadPoolExecutor）适合轻量级后台持久化任务；若数据量或并发增加，应切换到独立的任务队列（如 Celery/RQ）来解耦调度和执行。
+- 将调度器与应用生命周期绑定（startup/shutdown）便于管理，但应注意在容器化场景中（尤其是多副本）避免重复执行任务 — 生产部署时建议将调度器迁移到单独的 worker 服务或使用分布式锁。
+
+---
+**记录人**: 自动化实施助手
+**时间**: 2026-01-25
+
+---
 **记录人**: 自动化实施助手
 **时间**: 2026-01-25
