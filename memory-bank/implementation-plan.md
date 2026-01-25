@@ -69,11 +69,11 @@
 ### 2.1 开发环境初始化
 
 #### 步骤 1.1：配置 Python 开发环境
-- **任务**: 在 Windows 机器上安装 Python 3.11 和 pip
+- **任务**: 在 Windows 机器上安装 Python 3.12 和 pip
 - **验证方法**:
-  - 在 PowerShell 中运行 `python --version`，确认输出为 `Python 3.11.x`
+  - 在 PowerShell 中运行 `python --version`，确认输出为 `Python 3.12.x`
   - 运行 `pip --version`，确认 pip 版本为最新
-  - 运行 `python -m venv test_env` 创建虚拟环境，然后激活它
+  - 运行 `python -m venv aistock_env` 创建虚拟环境，然后激活它
   - 验证虚拟环境已激活（命令行前缀应显示环境名称）
 
 #### 步骤 1.2：初始化项目目录结构
