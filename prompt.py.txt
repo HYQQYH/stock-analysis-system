@@ -1,0 +1,610 @@
+import json
+from typing import Any, Dict, List
+
+import pandas as pd
+
+from stock_llm.schema import StockBasicInfo
+
+
+def format_trading_advice(advice: Dict[str, Any]) -> str:
+    """格式化交易建议输出"""
+    if not advice:
+        return "无法解析具体交易建议"
+
+    return f"""
+具体交易建议:
+------------------------
+交易方向: {advice.get('direction', '未指定')}
+目标价格: {advice.get('target_price', '未指定')} 元
+交易数量: {advice.get('quantity', '未指定')} 股
+止损价格: {advice.get('stop_loss', '未指定')} 元
+止盈目标: {advice.get('take_profit', '未指定')} 元
+建议持仓: {advice.get('holding_period', '未指定')} 个交易日
+风险等级: {advice.get('risk_level', '未指定')}
+------------------------"""
+
+
+def build_analysis_prompt(
+    stock_info: StockBasicInfo,
+    stock_status: pd.DataFrame,
+    news_list: List[Dict],
+    financial_data: pd.DataFrame,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""请分析以下股票的投资价值并给出具体的交易建议：
+
+1. 股票基本信息:
+代码: {stock_info.code}
+名称: {stock_info.name}
+所属行业: {stock_info.business}
+
+2. 股票近7日成交数据信息：
+{stock_status.to_markdown()}
+
+3. 最新相关新闻:
+"""
+
+    for i, news in enumerate(news_list[:3], 1):
+        prompt += f"""
+新闻{i}:
+标题: {news.get('title')}
+时间: {news.get('time')}
+内容: {news.get('content')}
+"""
+
+    prompt += f"""
+4. 主要财务指标:
+{financial_data.to_markdown()}
+
+请从以下几个方面进行分析并给出具体建议：
+
+1. 公司基本面分析
+2. 行业发展前景
+3. 最新消息影响
+4. 财务指标分析
+5. 具体交易建议
+
+你必须严格按照以下格式给出交易建议（包含所有字段且不能为空）：
+
+交易建议：
+交易方向：[买入/卖出]
+目标价格：[具体数字，单位：元]
+交易数量：[具体数字，单位：股]
+止损价格：[具体数字，单位：元]
+止盈目标：[具体数字，单位：元]
+持仓时间：[具体数字，单位：个交易日]
+风险等级：[高/中/低]
+
+注意：
+1. 所有数值必须是具体的数字，不能使用范围或描述性语言
+2. 价格必须精确到小数点后两位
+3. 交易数量必须是100的整数倍
+4. 持仓时间必须是具体的交易日数
+5. 必须包含上述所有字段，且格式要完全一致
+
+请先给出分析，然后在最后给出严格按照上述格式的交易建议。
+"""
+    return prompt
+
+
+def market_analysis_prompt(news_list: List[str], topk: float = 10) -> str:
+    prompt = f"""请分析以下最新市场新闻,并推荐3-5只值得关注的股票：
+1. 最新市场新闻：
+"""
+    for i, news in enumerate(news_list[:topk], 1):  # 增加到10条新闻
+        prompt += f"""
+新闻{i}:
+标题: {news.get('title')}
+时间: {news.get('time')}
+内容: {news.get('content')}
+"""
+    prompt += """
+请根据以上新闻分析当前市场环境，并推荐3-5只值得关注的股票。
+对于每只推荐的股票，请提供：
+1. 股票代码（格式为6位数字，如000001、600000等）
+2. 推荐理由
+3. 所属行业
+
+注意：请不要假设或猜测股票的当前价格，我们会在后续分析中获取实时数据。
+"""
+    return prompt
+
+
+def recommend_prompt(stock_details):
+    prompt = f"""请对以下股票进行深入分析并给出具体交易建议：
+
+推荐股票详细信息：
+{json.dumps(stock_details, ensure_ascii=False, indent=2)}
+
+请针对每只股票给出以下分析：
+1. 基本面分析 - 基于公司情况、行业前景等
+2. 技术面分析 - 基于提供的技术指标
+3. 市场情绪分析 - 基于相关新闻
+4. 风险提示 - 明确指出投资风险
+5. 具体交易建议
+
+交易建议必须包含:
+- 建议买入价格区间（基于技术分析给出合理区间，不要假设当前价格）
+- 止损位（明确的价格点位）
+- 止盈目标（明确的价格点位）
+- 建议持仓时间
+- 风险等级（高/中/低）
+
+重要提示：
+1. 不要假设或猜测当前股票价格，请基于提供的技术指标进行分析
+2. 给出的买入价格区间必须合理，与技术指标相符
+3. 交易建议必须具体、可执行，不要使用模糊表述
+"""
+    return prompt
+
+
+def build_guzhi_prompt(
+    infos: str,
+    stock_details: List[dict],
+    pred_logit: str,
+    guzhi_method: str,
+    other_infos: str,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""以下是获取到的信息流：
+{infos}
+
+从信息流中挖掘到的个股信息如下:
+"""
+    for i, stock_detail in enumerate(stock_details, 1):
+        prompt += f"""
+个股{i}
+基本信息: {stock_detail["basic_info"]}
+近7日指标数据:
+{stock_detail["technical_indicators"]}
+
+"""
+
+    prompt += f"""
+根据信息流挖掘的逻辑分类为:{pred_logit},
+对应的估值方式是: {guzhi_method}
+潜在涨幅计算方法：未来估值/当下估值-1
+
+其他信息:
+f{other_infos}
+
+
+请从以下几个方面进行分析并给出具体建议：
+
+1. 公司基本面分析
+2. 行业发展前景
+3. 过去1年产能、产量、售价、销售成本、未来新增产能
+4. 行业格局与各家份额。
+5. 潜在涨幅预估
+6. 具体交易建议
+
+你必须严格按照以下格式给出交易建议（包含所有字段且不能为空）：
+
+交易建议：
+交易方向：[买入/卖出]
+目标价格：[具体数字，单位：元]
+交易数量：[具体数字，单位：股]
+止损价格：[具体数字，单位：元]
+止盈目标：[具体数字，单位：元]
+持仓时间：[具体数字，单位：个交易日]
+风险等级：[高/中/低]
+预估涨幅：[百分数]
+
+注意：
+1. 所有数值必须是具体的数字，不能使用范围或描述性语言
+2. 价格必须精确到小数点后两位
+3. 交易数量必须是100的整数倍
+4. 持仓时间必须是具体的交易日数
+5. 必须包含上述所有字段，且格式要完全一致
+
+请先给出分析，然后在最后给出严格按照上述格式的交易建议。
+"""
+    return prompt
+
+
+def build_touji_prompt(
+    stock_info: StockBasicInfo,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    news_list: List[Dict],
+    dapan: pd.DataFrame,
+    market_activity: pd.DataFrame,
+    concept_name: str = "",
+    concept_status: pd.DataFrame = None,
+    latest_analysis: str = None,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""你是一个顶级的投机套利高手，根据如下信息分析标的的套利机会：
+
+1. 标的基本信息:
+代码: {stock_info.code}
+名称: {stock_info.name}
+所属行业: {stock_info.business}
+
+2. 标的近14日成交数据信息：
+{stock_status.to_markdown()}
+
+3. 标的周k线数据如下：
+{stock_weekly_status.to_markdown()}
+
+4. 最新相关新闻:
+"""
+
+    for i, news in enumerate(news_list[:2], 1):
+        prompt += f"""
+新闻{i}:
+标题: {news.get('title')}
+时间: {news.get('time')}
+内容: {news.get('content')}
+"""
+
+    prompt += f"""
+5. 大盘近期情况:
+{dapan.to_markdown()}
+
+6. 赚钱效应分析：
+{market_activity.to_markdown()}
+
+"""
+    if concept_name:
+        prompt += f"""
+7. 概念: {concept_name} 板块近期情况：
+{concept_status.to_markdown()}
+
+"""
+    if latest_analysis:
+        prompt += f"""
+8. 该标的近期技术分析结果如下：
+{latest_analysis}
+"""
+    prompt += """
+分析上述数据，再根据标的的近期走势，判断标的是否有买点，并给出买卖点以及操作手法。
+注意：分析中的数据必须符合事实，特别是需要符合不同日期的历史数据，如最高点，跳空缺口等。
+"""
+    #     prompt += """
+    # 请根据上述信息，分析标的套利的机会，给出第二天可能的买入点位及止损止盈点位。如果不适合买入，要给出风险提示。
+    # 先给出分析，再按如下格式输出：
+
+    # 分析过程：[分析详情，从大盘情绪，技术面等方面]
+    # 交易方向：[买入/卖出]
+    # 止损价格：[具体数字，单位：元]
+    # 止盈目标：[具体数字，单位：元]
+    # 持仓时间：[具体数字，单位：个交易日]
+    # 风险等级：[高/中/低]
+    # 预估涨幅：[百分数]
+    # 操作方法：[比如先下跌到xx元再买入，或者如果先冲高是否先卖出做T买回]
+
+    # 特别注意如果大盘有大幅回调风险要分析大盘回调对标的的影响。
+    # """
+    return prompt
+
+
+def dapan_analysis_prompt(
+    daily_data: pd.DataFrame, weekly_data: pd.DataFrame, monthly_data: pd.DataFrame
+) -> str:
+    prompt = f"""你是一个顶级的股票操盘手，请根据大盘的近期日线、周线、月线数据分析大盘走势，
+如果有波段做多机会需重点指出，并指出上涨预期点位，压力位支撑位等。
+如果有较大下跌风险，需要重点指出，并给出压力位支撑位等。
+给出详细分析报告。
+
+1. 大盘的日k线走势如下：
+{daily_data.to_markdown()}
+
+2. 大盘的周k线走势如下：
+{weekly_data.to_markdown()}
+
+3. 大盘的月k线走势如下：
+{monthly_data.to_markdown()}
+
+"""
+    return prompt
+
+
+def build_fenshi_prompt(
+    stock_info: StockBasicInfo,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    dapan: pd.DataFrame,
+    market_activity: pd.DataFrame,
+    stock_fenshi_status: pd.DataFrame,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""你是一个顶级的股票超短选手(T+1)，根据如下信息分析标的的套利机会：
+
+1. 标的基本信息:
+代码: {stock_info.code}
+名称: {stock_info.name}
+所属行业: {stock_info.business}
+
+2. 标的近14日成交数据信息：
+{stock_status.to_markdown()}
+
+3. 标的周k线数据如下：
+{stock_weekly_status.to_markdown()}
+
+4. 大盘近期情况:
+{dapan.to_markdown()}
+
+5. 赚钱效应分析：
+{market_activity.to_markdown()}
+
+6. 标的分时走势：
+{stock_fenshi_status.to_markdown()}
+
+分析上述数据，再根据标的的分时走势，判断标的是否有买点，并给出买卖点以及操作手法。
+特别注意：你根据的是标的的分时走势分析，当日收盘时间是15:00，如果第6点给出的最后一个数据不是15:00的，说明当天还未收盘，属于盘中走势。
+分析套利机会时应该考虑到这一点，以此判断是否有日内买点。
+"""
+    return prompt
+
+
+def build_boduan_prompt(
+    stock_info: StockBasicInfo,
+    financial_status: pd.DataFrame,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    dapan: pd.DataFrame,
+    concept_name: str = "",
+    concept_status: pd.DataFrame = None,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""你是一位拥有15年实战经验的顶级股票波段交易专家，擅长结合技术分析和市场情绪捕捉短期趋势。
+请以专业交易员的思维框架分析标的的波段机会：
+
+1. 标的基本信息:
+代码: {stock_info.code}
+名称: {stock_info.name}
+所属行业: {stock_info.business}
+
+2. 标的的财务情况：
+{financial_status.to_markdown()}
+
+3. 标的近期日成交数据信息：
+{stock_status.to_markdown()}
+
+4. 标的周k线数据如下：
+{stock_weekly_status.to_markdown()}
+
+5. 大盘近期情况:
+{dapan.to_markdown()}
+"""
+
+    if concept_name:
+        prompt += f"""
+6. 概念: {concept_name} 板块近期情况：
+{concept_status.to_markdown()}
+
+"""
+    #     prompt += """
+    # 分析上述数据，分析标的是否有波段套利的机会，并给出买卖点以及操作手法。如果有风险需提出。
+    # """
+    prompt += """
+【分析框架】
+请按专业顺序评估：
+一、趋势判定
+1. 多周期共振：周线趋势方向与日线是否一致？
+2. 均线系统：当前价格与关键均线的乖离率是否合理？
+3. 大盘关联性：个股走势与基准指数的偏离程度
+
+二、波段结构识别
+1. 震荡区间：近期是否形成明显支撑/压力位？（标注具体价格区间）
+2. 量价配合：上涨放量/下跌缩量特征是否显著？
+3. 指标背离：MACD/RSI是否出现底背离或顶背离信号？
+
+三、买卖点策略
+1. 理想建仓区域（结合支撑位与风险回报比）
+2. 止损位置设置（技术止损与波动率止损双维度）
+3. 目标价位测算（基于前高压力、黄金分割位、ATR波动幅度）
+
+四、风险警示
+1. 需要重点关注的潜在变盘信号
+2. 重大事件时间窗口（如财报披露、限售解禁）
+3. 市场流动性风险预警
+
+【输出要求】
+用交易员术语呈现结构化分析，关键位置精确到小数点后两位，时间窗口标注具体日期。最后用★符号对机会等级进行1-5星评价。
+"""
+    return prompt
+
+
+def build_duanxian_prompt1(
+    stock_info: StockBasicInfo,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    news_list: List[Dict],
+    dapan: pd.DataFrame,
+    market_activity: pd.DataFrame,
+    concept_name: str = "",
+    concept_status: pd.DataFrame = None,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""你是一位拥有15年经验的顶级T+1短线交易员，擅长通过多维度共振捕捉短线机会。
+请基于以下结构化框架分析{stock_info.code}未来1-5个交易日的投机潜力：
+
+1. 标的基本信息:
+代码: {stock_info.code}
+名称: {stock_info.name}
+所属行业: {stock_info.business}
+
+2. 标的近期成交数据信息：
+{stock_status.to_markdown()}
+
+3. 标的近期周k线数据如下：
+{stock_weekly_status.to_markdown()}
+
+4. 最新相关新闻:
+"""
+    for i, news in enumerate(news_list[:1], 1):
+        prompt += f"""
+新闻{i}:
+标题: {news.get('title')}
+时间: {news.get('time')}
+内容: {news.get('content')}
+"""
+
+    prompt += f"""
+5. 大盘近期情况:
+{dapan.to_markdown()}
+
+6. 赚钱效应分析：
+{market_activity.to_markdown()}
+
+"""
+    if concept_name:
+        prompt += f"""
+7. 概念: {concept_name} 板块近期情况：
+{concept_status.to_markdown()}
+
+"""
+
+    prompt += """
+【核心分析框架】
+
+1. 趋势定位分析
+1.1 对比个股与所属板块(近5日涨跌幅、相对强度RSI差值)
+1.2 对照基准指数(如沪深300近10日波动率)
+1.3 关键时空节点标注(如：季线突破前高/回踩50日均线)
+
+2. 量价动能诊断
+2.1 异常成交量识别(近3日量能超过20日均量150%的天数)
+2.2 关键价格位验证(昨日收盘价是否站上BOLL中轨)
+2.3 资金流分析(北向资金3日净流入趋势+主力大单净量变化)
+
+3. 市场情绪共振
+3.1 舆情热度分析(百度搜索指数周环比变化+雪球讨论量突增时间点)
+3.2 板块轮动契合度(所属行业在近期资金流入榜排名)
+3.3 短期催化剂验证(重大公告/政策发布的时间窗口)
+
+【输出要求】
+① 机会判断：给出明确概率评估(如：高确定性机会/观望信号)
+② 精确买卖点：入场价位(精确到分)、止损位(建议最大回撤2-3%)、目标价位(基于ATR波动率测算)
+③ 仓位策略：根据凯利公式计算建议持仓比例
+④ 监控清单：需重点观察的3个关键指标及异动应对方案
+"""
+    return prompt
+
+
+def build_duanxian_prompt(
+    stock_info: StockBasicInfo,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    news_list: List[Dict],
+    dapan: pd.DataFrame,
+    market_activity: pd.DataFrame,
+    concept_name: str = "",
+    concept_status: pd.DataFrame = None,
+) -> str:
+    """构建分析提示词"""
+    prompt = f"""你是一位拥有15年经验的顶级T+1短线交易员，精通多维度共振策略和量化风控模型。
+	请基于以下结构化数据，对{stock_info.code}未来1-5个交易日的投机潜力进行专业分析：
+	【基础数据层】
+	1. 标的核心信息：
+	   代码: {stock_info.code} | 名称: {stock_info.name} | 行业: {stock_info.business}
+	2. 近期交易数据（日频）：
+	{stock_status.to_markdown()}
+	3. 周K线技术形态：
+	{stock_weekly_status.to_markdown()}
+	4. 最新市场催化剂：
+	"""
+    for i, news in enumerate(news_list[:4], 1):  # 扩展至4条新闻
+        prompt += f"""
+	   新闻{i}: [{news.get('time')}] {news.get('title')}
+	   关键摘要：{news.get('content')[:200]}...  # 限制内容长度
+	"""
+    prompt += f"""
+    5. 大盘环境扫描：
+    {dapan.to_markdown()}
+    6. 市场温度计：
+    {market_activity.to_markdown()}
+	"""
+    if concept_name:
+        prompt += f"""
+	7. 板块动能追踪：{concept_name}
+	{concept_status.to_markdown()}
+	"""
+    prompt += """
+	【量化分析框架】
+	1. 趋势定位系统
+	   1.1 相对强度矩阵：个股 vs 行业(5日涨跌幅差值+RSI背离度) vs 沪深300(10日波动率差)
+	   1.2 关键位置标注：当前价格与BOLL(20,2)/MA50/前高的空间距离(%)
+	   1.3 时间窗口敏感度：距离财报/除权/解禁等事件日历天数
+	2. 量价动能诊断
+	   2.1 量能异动系数：(近3日均量/20日均量-1)*100% + 量价背离信号
+	   2.2 订单流分析：主力资金净流入3日趋势 + 北向资金边际变化
+	   2.3 波动率预测：ATR(14)当前值 vs 历史分位数 + 隐含波动率偏离度
+	3. 市场情绪共振
+	   3.1 舆情热度：百度指数周环比 + 雪球/东方财富讨论量突增幅度
+	   3.2 板块轮动：行业资金流向排名 + 概念指数相对强度
+	   3.3 催化剂验证：新闻事件与价格走势的关联性分析
+	【决策输出要求】
+	1. 机会评级（三选一，打勾）：
+	   ▢ 高确定性机会（概率>70%） | ▢ 观望信号（概率40-70%） | ▢ 规避风险（概率<40%）
+	   评级依据：[必填3个核心指标验证]
+	2. 精确交易计划：
+	   入场价位：______元（触发条件：______）
+	   止损位：______元（最大回撤≤______%）
+	   目标位：______元（基于ATR测算：______倍ATR）
+	   持仓周期：预计______个交易日
+	3. 动态仓位模型：
+	   凯利公式建议仓位：______% 
+	   （胜率______% + 赔率______：1 + 风险系数______）
+	   实际调整仓位：______% （考虑大盘关联度/流动性风险）
+	4. 实时监控清单：
+	   指标1：______（预警阈值：______ → 应对方案：______）
+	   指标2：______（预警阈值：______ → 应对方案：______）
+	   指标3：______（预警阈值：______ → 应对方案：______）
+	【风险警示】
+	• 强制止损纪律：单笔亏损不得超过总资金2%
+	• 隔夜风险敞口评估：______（高/中/低）
+	• 流动性风险：当前日均换手率______% vs 需求换手率______%
+	"""
+    return prompt
+
+
+def build_n1n_prompt(
+    stock_info: StockBasicInfo,
+    stock_zt_info: dict,
+    stock_status: pd.DataFrame,
+    stock_weekly_status: pd.DataFrame,
+    news_list: List[Dict],
+    dapan: pd.DataFrame,
+    market_activity: pd.DataFrame,
+    concept_name: str = "",
+    concept_status: pd.DataFrame = None,
+) -> str:
+    """
+    N+1+N形态反包的概率分析
+    """
+    prompt = f"""你是一位专攻超短反包形态的顶级交易员，当前标的{stock_info.code}已确认符合N+1+N形态（昨日涨停+今日断板长上影）。请基于以下数据预测分析反包概率并制定交易方案：
+    【核心形态数据】
+    1. 标的基本信息：
+        代码: {stock_info.code} | 名称: {stock_info.name} | 行业: {stock_info.business}
+        涨停质量：封单额{stock_zt_info["封板资金"]}亿 | 炸板次数{stock_zt_info["炸板次数"]} | 首次封板时间{stock_zt_info["首次封板时间"]} | 最后封板时间{stock_zt_info["最后封板时间"]}
+    2. 关键K线数据：
+    {stock_status.to_markdown()}
+    3. 周线位置定位：
+    {stock_weekly_status.to_markdown()}
+    4. 个股相关新闻：
+    """
+    for i, news in enumerate(news_list[:3], 1):
+        prompt += f"""
+	   新闻{i}: [{news.get('time')}] {news.get('title')}
+	   关键摘要：{news.get('content')[:200]}...  # 限制内容长度
+	"""
+        
+    prompt += f"""
+    5. 大盘环境：
+    {dapan.to_markdown()}
+    6. 市场温度计：
+    {market_activity.to_markdown()}
+    """
+    if concept_name:
+        prompt += f"""
+    7. 板块详情：{concept_name}
+    {concept_status.to_markdown()}
+    """
+
+    prompt += """
+    综合以上数据给出买卖点分析、仓位建议、止损点等，给出相应的理由。
+    """
+    return prompt

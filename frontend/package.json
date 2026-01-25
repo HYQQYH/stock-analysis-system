@@ -1,0 +1,48 @@
+{
+  "name": "stock-analysis-system",
+  "version": "0.1.0",
+  "description": "A comprehensive stock analysis platform with AI-powered insights",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write src",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "zustand": "^4.4.7",
+    "axios": "^1.6.2",
+    "@tanstack/react-query": "^5.28.0",
+    "echarts": "^5.4.3",
+    "echarts-for-react": "^3.0.2",
+    "antd": "^5.11.0",
+    "dayjs": "^1.11.10",
+    "lodash-es": "^4.17.21",
+    "classnames": "^2.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@types/node": "^20.10.5",
+    "tailwindcss": "^3.3.0",
+    "postcss": "^8.4.31",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.1",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "vitest": "^1.0.4",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.5"
+  }
+}
