@@ -58,7 +58,7 @@ class IndicatorCalculator:
             signal: Signal period for smoothing (default: 3)
 
         Returns:
-            DataFrame with original data plus KDJ columns: KDJ_K_9_3, KDJ_D_9_3, KDJ_J_9_3
+            DataFrame with original data plus KDJ columns: KDJ_K, KDJ_D, KDJ_J
         """
         if not all(col in kline_df.columns for col in ['high', 'low', 'close']):
             raise ValueError("DataFrame must contain 'high', 'low', 'close' columns for KDJ calculation")
@@ -77,19 +77,23 @@ class IndicatorCalculator:
                 smooth_k=signal
             )
 
-            # Calculate J value: J = 3K - 2D
-            if 'STOCHk_14_3_3' in stoch.columns and 'STOCHd_14_3_3' in stoch.columns:
-                stoch['KDJ_J'] = 3 * stoch['STOCHk_14_3_3'] - 2 * stoch['STOCHd_14_3_3']
+            # Debug: Log columns returned by stoch function
+            logger.info("Stochastic columns: %s", stoch.columns.tolist())
 
-                # Rename columns to match expected format
-                stoch = stoch.rename(columns={
-                    'STOCHk_14_3_3': 'KDJ_K',
-                    'STOCHd_14_3_3': 'KDJ_D',
-                    'KDJ_J': 'KDJ_J'
-                })
-
-            # Merge KDJ results with original DataFrame
-            df = pd.concat([df, stoch[['KDJ_K', 'KDJ_D', 'KDJ_J']]], axis=1)
+            # Get the actual column names from the result
+            stoch_cols = stoch.columns.tolist()
+            
+            # Create KDJ columns with standard names
+            if len(stoch_cols) >= 2:
+                # Get the first two columns (K and D values)
+                k_col = stoch_cols[0]
+                d_col = stoch_cols[1]
+                
+                df['KDJ_K'] = stoch[k_col]
+                df['KDJ_D'] = stoch[d_col]
+                
+                # Calculate J value: J = 3K - 2D
+                df['KDJ_J'] = 3 * df['KDJ_K'] - 2 * df['KDJ_D']
 
             logger.info("KDJ calculated successfully for %d rows", len(df))
             return df
@@ -197,32 +201,38 @@ class IndicatorCalculator:
 
         # Check RSI range (should be between 0 and 100)
         if 'RSI_14' in indicators_df.columns:
-            rsi_valid = (indicators_df['RSI_14'] >= 0) & (indicators_df['RSI_14'] <= 100)
-            if not rsi_valid.all():
-                invalid_count = (~rsi_valid).sum()
-                validation_results['valid'] = False
-                validation_results['issues'].append(
-                    f"RSI has {invalid_count} values outside 0-100 range"
-                )
+            rsi_values = indicators_df['RSI_14'].dropna()
+            if len(rsi_values) > 0:
+                rsi_valid = (rsi_values >= 0) & (rsi_values <= 100)
+                if not rsi_valid.all():
+                    invalid_count = (~rsi_valid).sum()
+                    validation_results['valid'] = False
+                    validation_results['issues'].append(
+                        f"RSI has {invalid_count} values outside 0-100 range"
+                    )
 
         # Check KDJ range (should be between 0 and 100, though J can go outside)
         if 'KDJ_K' in indicators_df.columns:
-            k_valid = (indicators_df['KDJ_K'] >= 0) & (indicators_df['KDJ_K'] <= 100)
-            if not k_valid.all():
-                invalid_count = (~k_valid).sum()
-                validation_results['valid'] = False
-                validation_results['issues'].append(
-                    f"KDJ_K has {invalid_count} values outside 0-100 range"
-                )
+            k_values = indicators_df['KDJ_K'].dropna()
+            if len(k_values) > 0:
+                k_valid = (k_values >= 0) & (k_values <= 100)
+                if not k_valid.all():
+                    invalid_count = (~k_valid).sum()
+                    validation_results['valid'] = False
+                    validation_results['issues'].append(
+                        f"KDJ_K has {invalid_count} values outside 0-100 range"
+                    )
 
         if 'KDJ_D' in indicators_df.columns:
-            d_valid = (indicators_df['KDJ_D'] >= 0) & (indicators_df['KDJ_D'] <= 100)
-            if not d_valid.all():
-                invalid_count = (~d_valid).sum()
-                validation_results['valid'] = False
-                validation_results['issues'].append(
-                    f"KDJ_D has {invalid_count} values outside 0-100 range"
-                )
+            d_values = indicators_df['KDJ_D'].dropna()
+            if len(d_values) > 0:
+                d_valid = (d_values >= 0) & (d_values <= 100)
+                if not d_valid.all():
+                    invalid_count = (~d_valid).sum()
+                    validation_results['valid'] = False
+                    validation_results['issues'].append(
+                        f"KDJ_D has {invalid_count} values outside 0-100 range"
+                    )
 
         # Check for excessive NaN values
         total_rows = len(indicators_df)

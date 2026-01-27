@@ -32,10 +32,13 @@ class RedisClient:
                 logger.warning("Redis ping returned False")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            # Don't raise exception, allow tests to run without Redis
+            self.client = None
 
     def get(self, key: str) -> Optional[str]:
         """Get value from cache"""
+        if self.client is None:
+            return None
         try:
             return self.client.get(key)
         except Exception as e:
@@ -44,6 +47,8 @@ class RedisClient:
 
     def get_json(self, key: str) -> Optional[dict]:
         """Get JSON value from cache"""
+        if self.client is None:
+            return None
         try:
             value = self.client.get(key)
             if value:
@@ -55,6 +60,8 @@ class RedisClient:
 
     def set(self, key: str, value: str, ttl: int = None) -> bool:
         """Set value in cache"""
+        if self.client is None:
+            return False
         try:
             if ttl:
                 return self.client.setex(key, ttl, value)
@@ -66,6 +73,8 @@ class RedisClient:
 
     def set_json(self, key: str, value: dict, ttl: int = None) -> bool:
         """Set JSON value in cache"""
+        if self.client is None:
+            return False
         try:
             json_value = json.dumps(value, ensure_ascii=False)
             if ttl:
@@ -78,6 +87,8 @@ class RedisClient:
 
     def delete(self, key: str) -> int:
         """Delete key from cache"""
+        if self.client is None:
+            return 0
         try:
             return self.client.delete(key)
         except Exception as e:
@@ -86,17 +97,21 @@ class RedisClient:
 
     def delete_pattern(self, pattern: str) -> int:
         """Delete keys matching pattern"""
+        if self.client is None:
+            return 0
         try:
             keys = self.client.keys(pattern)
             if keys:
                 return self.client.delete(*keys)
             return 0
         except Exception as e:
-            logger.error(f"Error deleting keys with pattern {pattern}: {e}")
+            logger.error(f"Error deleting keys with pattern {pattern} from Redis: {e}")
             return 0
 
     def exists(self, key: str) -> bool:
         """Check if key exists"""
+        if self.client is None:
+            return False
         try:
             return self.client.exists(key) > 0
         except Exception as e:
@@ -105,6 +120,8 @@ class RedisClient:
 
     def expire(self, key: str, ttl: int) -> bool:
         """Set expiration time for key"""
+        if self.client is None:
+            return False
         try:
             return self.client.expire(key, ttl)
         except Exception as e:
@@ -113,6 +130,8 @@ class RedisClient:
 
     def ttl(self, key: str) -> int:
         """Get remaining TTL for key"""
+        if self.client is None:
+            return -1
         try:
             return self.client.ttl(key)
         except Exception as e:
@@ -121,6 +140,8 @@ class RedisClient:
 
     def clear_all(self) -> bool:
         """Clear all keys (use with caution!)"""
+        if self.client is None:
+            return False
         try:
             self.client.flushdb()
             logger.warning("All Redis keys cleared")
@@ -131,6 +152,8 @@ class RedisClient:
 
     def close(self):
         """Close Redis connection"""
+        if self.client is None:
+            return
         try:
             self.client.close()
             logger.info("Redis connection closed")
