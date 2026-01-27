@@ -13,7 +13,8 @@ scipy==1.11.4
 # akshare 1.18.19 is the latest version compatible with Python 3.12
 akshare==1.18.19
 
-# Technical Indicators (removed pandas-ta due to numpy dependency conflicts - can be added later if needed)
+# Technical Indicators
+pandas-ta==0.3.14b0
 
 # HTTP Requests
 httpx==0.25.0
