@@ -162,20 +162,20 @@
 ### 2.3 数据库初始化
 
 #### 步骤 3.1：设计数据库 Schema
-- **任务**: 设计核心数据库表结构（MySQL）
+- **任务**: 设计核心数据库表结构（PostgreSQL）
   - 股票基本信息表（stock_info）: 代码、名称、上市日期等
-  - K 线数据表（kline_data）: 股票代码、日期、开收高低、成交量等
+  - K线数据表（kline_data）: 股票代码、日期、开收高低、成交量等
   - 技术指标表（indicators）: 指标类型、计算结果、计算日期
   - 分析记录表（analysis_records）: 分析时间、股票代码、分析结果、AI 报告
   - 新闻表（news）: 新闻标题、内容、来源、发布时间
   - 大盘数据表（market_data）: 大盘资金流向、市场活跃度指标
 - **验证方法**:
-  - 在 `backend/app/db/` 目录下创建 schema.sql 文件
+  - 在 `backend/app/db/` 目录下创建 schema_pg.sql 文件
   - 文件中包含所有表的 CREATE TABLE 语句
   - 每个表都包含主键、索引和必要的约束
-  - SQL 语法符合 MySQL 8.0 标准
+  - SQL 语法符合 PostgreSQL 15 标准
 
-**说明**: 预计系统日活用户（DAU）为个位数，初期可采用单实例 MySQL 配置（垂直扩展），通过合理索引和资源调优满足性能需求；分库分表、读写分离等水平扩展方案作为后续扩展选项。
+**说明**: 预计系统日活用户（DAU）为个位数，初期可采用单实例 PostgreSQL 配置（垂直扩展），通过合理索引和资源调优满足性能需求；分库分表、读写分离等水平扩展方案作为后续扩展选项。
 
 #### 步骤 3.2：创建 SQLAlchemy ORM 模型定义
 - **任务**: 在 `backend/app/models/` 中定义数据库 ORM 模型
@@ -188,15 +188,15 @@
   - 模型类可以正确导入，无语法错误
   - 运行 `python -c "from app.models import *; print('Models imported successfully')"` 确认导入无误
 
-#### 步骤 3.3：初始化 MySQL 数据库
-- **任务**: 在本地 MySQL 实例中创建数据库和表
-  - 使用 Docker 启动 MySQL 8.0 容器（可选）或使用已安装的 MySQL
+#### 步骤 3.3：初始化 PostgreSQL 数据库
+- **任务**: 在本地 PostgreSQL 实例中创建数据库和表
+  - 使用 Docker 启动 PostgreSQL 15 容器（可选）或使用已安装的 PostgreSQL
   - 创建数据库 `stock_analysis_db`
-  - 执行 schema.sql 创建所有表
+  - 执行 schema_pg.sql 创建所有表
 - **验证方法**:
-  - 连接到 MySQL 数据库，运行 `USE stock_analysis_db; SHOW TABLES;`
+  - 连接到 PostgreSQL 数据库，运行 `\dt` 显示所有表
   - 确认所有表都已创建
-  - 对每个表运行 `DESCRIBE <table_name>` 验证字段定义
+  - 对每个表运行 `\d <table_name>` 验证字段定义
 
 #### 步骤 3.4：初始化 Redis 缓存
 - **任务**: 配置和启动 Redis 服务
@@ -229,7 +229,7 @@
   - 创建依赖注入函数，用于 FastAPI 路由获取数据库会话
 - **验证方法**:
   - 创建测试脚本验证数据库连接
-  - 运行测试脚本，确认能成功连接到 MySQL 和 Redis
+  - 运行测试脚本，确认能成功连接到 PostgreSQL 和 Redis
   - 验证会话获取和释放流程正常
 
 #### 步骤 4.3：创建配置管理系统
@@ -240,7 +240,7 @@
 - **验证方法**:
   - 创建 .env 文件（基于 .env.example），填入测试数据库连接信息
   - 运行 `python -c "from app.config import settings; print(settings.DATABASE_URL)"` 确认配置加载
-  - 验证配置值与 .env 文件一致
+  - 验证配置值与 .env 文件一致（使用 PostgreSQL 连接字符串）
 
 ---
 
@@ -280,14 +280,14 @@
 #### 步骤 5.3：实现 K 线数据管理
 - **任务**: 在 `backend/app/services/` 中创建 `kline_manager.py` K 线数据管理模块
  - 实现方法: `cache_kline_data(code, period, data)` - **优先**将 K 线数据写入 Redis 缓存（缓存优先策略），并返回缓存确认
- - 实现方法: `save_kline_to_db(code, period, data)` - 异步将缓存数据落盘到 MySQL（后台任务，避免阻塞实时请求）
- - 实现方法: `get_kline_data(code, period, days)` - 获取历史 K 线数据（优先从 Redis 缓存，缓存未命中回退到 MySQL）
- - 实现数据去重和一致性校验，确保 Redis 与 MySQL 最终一致（可采用输入摘要/哈希和幂等写入策略）
+ - 实现方法: `save_kline_to_db(code, period, data)` - 异步将缓存数据落盘到 PostgreSQL（后台任务，避免阻塞实时请求）
+ - 实现方法: `get_kline_data(code, period, days)` - 获取历史 K 线数据（优先从 Redis 缓存，缓存未命中回退到 PostgreSQL）
+ - 实现数据去重和一致性校验，确保 Redis 与 PostgreSQL 最终一致（可采用输入摘要/哈希和幂等写入策略）
  - **验证方法**:
   - 编写测试用例覆盖上述方法
   - 调用 cache_kline_data 后，通过 Redis 命令验证数据已缓存
-  - 在后台异步任务执行后，验证 MySQL 中数据已持久化（可接受延迟范围内）
-  - 验证 get_kline_data 在 Redis 可用和不可用两种场景下均能正确返回（Redis 不可用时回退到 MySQL）
+  - 在后台异步任务执行后，验证 PostgreSQL 中数据已持久化（可接受延迟范围内）
+  - 验证 get_kline_data 在 Redis 可用和不可用两种场景下均能正确返回（Redis 不可用时回退到 PostgreSQL）
   - 验证去重逻辑和幂等性，避免重复写入
 
 #### 步骤 5.4：创建定时数据采集任务
@@ -299,7 +299,7 @@
   - 添加任务执行日志
 - **验证方法**:
   - 创建测试脚本手动触发定时任务
-  - 检查 MySQL 和 Redis 中数据是否按预期更新
+  - 检查 PostgreSQL 和 Redis 中数据是否按预期更新
   - 验证日志记录了任务执行时间和状态
   - 检查任务成功执行而不报错
 
@@ -767,7 +767,7 @@
 - **任务**: 在项目根目录创建 docker-compose.yml 编排文件
   - 定义 backend 服务（FastAPI）
   - 定义 frontend 服务（Nginx）
-  - 定义 mysql 服务
+  - 定义 PostgreSQL 服务
   - 定义 redis 服务
   - 配置网络和卷
   - 配置环境变量和启动依赖
@@ -894,7 +894,7 @@
 - [ ] 已读完 stock-design-document.md 和 tech-stack.md
 - [ ] 已建立项目目录结构
 - [ ] 已初始化 Git 仓库
-- [ ] 已确认开发环境（Python、Node.js、MySQL、Redis）
+- [ ] 已确认开发环境（Python、Node.js、PostgreSQL、Redis）
 
 ### 各周完成前
 - [ ] 所有任务都已完成

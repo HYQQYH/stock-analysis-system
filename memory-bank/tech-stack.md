@@ -421,7 +421,7 @@ frontend/
 
 ### 4.1 关系型数据库
 
-#### **推荐方案：MySQL 8.0.3+**
+#### **推荐方案：PostgreSQL 15**
 
 **选择理由：**
 
@@ -436,23 +436,22 @@ frontend/
    - 社区支持强大
 
 3. **版本特性**
-   - MySQL 8.0+ 支持窗口函数（时间序列查询便利）
+   - PostgreSQL 15 支持窗口函数（时间序列查询便利）
    - 性能显著提升
    - CTE（公用表达式）支持
 
 **版本选择：**
-- **推荐**：MySQL 8.0.35+（最新稳定版）
-- **保守**：MySQL 5.7.35+（但不推荐，已停止支持）
+- **推荐**：PostgreSQL 15（最新稳定版）
 
-**说明**: 由于预期系统的日活用户（DAU）为个位数，初期可以采用单实例 MySQL（配合充足的垂直资源和合理索引）来满足性能需求；在未来需要扩展时再考虑读写分离或分库分表方案。
+**说明**: 由于预期系统的日活用户（DAU）为个位数，初期可以采用单实例 PostgreSQL（配合充足的垂直资源和合理索引）来满足性能需求；在未来需要扩展时再考虑读写分离或分库分表方案。
 
 **备选方案：**
 
 | 数据库 | 优点 | 缺点 | 场景 |
 |--------|------|------|------|
-| MySQL 8.0 | 成熟稳定 | 并发写入一般 | **首选** |
+| PostgreSQL 15 | 成熟稳定 | 并发写入一般 | **首选** |
 | PostgreSQL | 功能强大，JSON 支持最佳 | 学习曲线较陡 | 数据量大时 |
-| MariaDB | MySQL 兼容，性能更优 | 社区较小 | 备选 |
+| MariaDB | PostgreSQL 兼容，性能更优 | 社区较小 | 备选 |
 | MongoDB | 灵活的 Schema | 事务支持弱 | 不推荐 |
 
 ---
@@ -515,9 +514,9 @@ analysis:{code}:{type}:{date} = JSON
 ```
 
 **说明（缓存策略）**: 推荐采用 Redis-First（缓存优先）策略：
-- 读：优先查询 Redis 缓存，缓存未命中时回退到 MySQL。
-- 写：先写入 Redis（快速响应），再异步落盘到 MySQL（后台任务）。
-- 容错：若 Redis 不可用，应直接查询 MySQL 并记录警告；同时考虑重试和告警策略以便恢复。
+- 读：优先查询 Redis 缓存，缓存未命中时回退到 PostgreSQL。
+- 写：先写入 Redis（快速响应），再异步落盘到 PostgreSQL（后台任务）。
+- 容错：若 Redis 不可用，应直接查询 PostgreSQL 并记录警告；同时考虑重试和告警策略以便恢复。
 
 由于系统预计 DAU 为个位数，该缓存优先策略可以显著降低同步写入对数据库的压力并保证低延迟响应；同时保留异步落盘保证数据持久化。
 
@@ -818,7 +817,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=mysql+pymysql://user:pass@mysql:3306/stock_db
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/stock_db
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - mysql
@@ -831,13 +830,13 @@ services:
     depends_on:
       - backend
 
-  mysql:
-    image: mysql:8.0.35
+  postgres:
+    image: postgres:15-alpine
     environment:
-      - MYSQL_ROOT_PASSWORD=password
-      - MYSQL_DATABASE=stock_db
+      - POSTGRES_PASSWORD: stock_pass_2026
+      - POSTGRES_DB: stock_analysis_db
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7.0-alpine
@@ -845,7 +844,7 @@ services:
       - "6379:6379"
 
 volumes:
-  mysql_data:
+  postgres_data:
 ```
 
 ---
@@ -1030,7 +1029,7 @@ storybook==7.6.0           # React 组件文档
 | | 图表库 | ECharts | 5.4+ | ⭐⭐⭐⭐⭐ |
 | | UI 组件 | Ant Design | 5.11+ | ⭐⭐⭐⭐ |
 | | 样式 | Tailwind CSS | 3.3+ | ⭐⭐⭐⭐ |
-| **数据存储** | 关系型 DB | MySQL | 8.0.35+ | ⭐⭐⭐⭐⭐ |
+| **数据存储** | 关系型 DB | PostgreSQL | 8.0.35+ | ⭐⭐⭐⭐⭐ |
 | | 缓存 DB | Redis | 7.0+ | ⭐⭐⭐⭐⭐ |
 | **部署运维** | 容器化 | Docker | 24.0+ | ⭐⭐⭐⭐⭐ |
 | | 编排 | Docker Compose | 2.23+ | ⭐⭐⭐⭐⭐ |
@@ -1146,7 +1145,7 @@ python-multipart==0.0.6
 1. Python 基础（1 周）
 2. FastAPI 框架（1 周）
 3. 数据处理：pandas + numpy（1-2 周）
-4. 数据库：MySQL + SQLAlchemy（1-2 周）
+4. 数据库：PostgreSQL + SQLAlchemy（1-2 周）
 5. akshare 和数据采集（1 周）
 6. LLM 集成：LangChain（1 周）
 7. Docker 部署（1 周）
@@ -1169,7 +1168,7 @@ python-multipart==0.0.6
 | 项目 | 成本 | 说明 |
 |------|------|------|
 | 云服务器 | ¥200-500 | 2-4 核 CPU, 4-8GB RAM |
-| 数据库 | ¥100-300 | MySQL RDS |
+| 数据库 | ¥100-300 | PostgreSQL RDS |
 | 缓存 | ¥50-100 | Redis 缓存 |
 | CDN | ¥50-100 | 前端静态资源加速 |
 | LLM API | ¥50-500 | 根据调用频率 |
@@ -1228,7 +1227,7 @@ python-multipart==0.0.6
 │  └──────────┘  └─────────┘  └────────────┘            │
 │        ↓            ↓              ↓                    │
 │  ┌──────────────────────────────────────┐              │
-│  │   MySQL 8.0 + Redis 7.0              │              │
+│  │   PostgreSQL 8.0 + Redis 7.0              │              │
 │  │   SQLAlchemy ORM + APScheduler       │              │
 │  │   LangChain + LLM API                │              │
 │  └──────────────────────────────────────┘              │
@@ -1285,7 +1284,7 @@ python-multipart==0.0.6
 
 ### 13.2 立即行动建议
 
-1. **周一**：环境搭建（Python + Node.js + MySQL + Redis）
+1. **周一**：环境搭建（Python + Node.js + PostgreSQL + Redis）
 2. **周二-三**：项目框架初始化（FastAPI + React）
 3. **周四-五**：数据采集模块原型（akshare 集成）
 4. **下周**：API 设计和前端页面框架

@@ -14,7 +14,7 @@
 
 **部署与使用假设（澄清）**:
 - 预期系统日活用户（DAU）为个位数，初期设计优先保证功能完整性与数据准确性，而非大规模水平扩展。
-- 数据读取优先使用 Redis 缓存（缓存优先策略），持久化写入 MySQL 可采用异步落盘以避免阻塞实时请求。
+- 数据读取优先使用 Redis 缓存（缓存优先策略），持久化写入 PostgreSQL 可采用异步落盘以避免阻塞实时请求。
 - 分析请求采用异步任务执行并通过轮询接口查询结果；若分析超时或失败，API 应返回明确的失败信息和错误描述。
  - 部署方式：优先采用本地部署（Docker 容器或本地启动脚本），在需要时再考虑云端托管。
 
@@ -330,7 +330,7 @@
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
 │  数据存储层   │ │  外部服务层   │ │  AI分析层     │
 │  ┌────────┐  │ │ ┌──────────┐ │ │ ┌──────────┐ │
-│  │ MySQL  │  │ │ │新浪财经  │ │ │ │ LLM API  │ │
+│  │ PostgreSQL  │  │ │ │新浪财经  │ │ │ │ LLM API  │ │
 │  └────────┘  │ │ └──────────┘ │ │ └──────────┘ │
 │  ┌────────┐  │ │ ┌──────────┐ │ │ ┌──────────┐ │
 │  │ Redis  │  │ │ │股票数据源│ │ │ │提示词模板 │ │
@@ -352,7 +352,7 @@
 - AI分析服务：与大模型交互
 
 **数据层：**
-- MySQL：持久化存储分析历史、新闻数据
+- PostgreSQL：持久化存储分析历史、新闻数据
 - Redis：缓存热点数据、会话管理
 
  **外部集成：**
@@ -379,7 +379,7 @@
   - 响应式设计，移动端友好
 
 ### 4.3 数据库
-- **关系型数据库**: MySQL 8.0
+- **关系型数据库**: PostgreSQL 15
   - 存储用户数据、分析历史、新闻记录
 - **缓存数据库**: Redis 7.0
   - 缓存热门股票数据、实时行情
@@ -423,21 +423,23 @@
 #### 5.1.1 股票基本信息表 (stock_info)
 ```sql
 CREATE TABLE stock_info (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     stock_name VARCHAR(50) NOT NULL COMMENT '股票名称',
     exchange VARCHAR(10) NOT NULL COMMENT '交易所: SH/SZ',
     industry VARCHAR(50) COMMENT '所属行业',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stock_code (stock_code)
 ) COMMENT='股票基本信息表';
 ```
 
+Note: In PostgreSQL, use SERIAL instead of AUTO_INCREMENT
+
 #### 5.1.2 K线数据表 (stock_kline_data)
 ```sql
 CREATE TABLE stock_kline_data (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     kline_type ENUM('day', 'week', 'month') NOT NULL COMMENT 'K线类型',
     trade_date DATE NOT NULL COMMENT '交易日期',
@@ -455,13 +457,15 @@ CREATE TABLE stock_kline_data (
 ) COMMENT='K线数据表';
 ```
 
+Note: In PostgreSQL, use VARCHAR for ENUM fields
+
 #### 5.1.3 技术指标数据表 (stock_indicators)
 ```sql
 CREATE TABLE stock_indicators (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     indicator_type VARCHAR(20) NOT NULL COMMENT '指标类型: MACD/KDJ等',
-    kline_type ENUM('day', 'week', 'month') NOT NULL,
+    kline_type VARCHAR(10) NOT NULL,
     trade_date DATE NOT NULL,
     indicator_data JSON NOT NULL COMMENT '指标数值(JSON格式)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -469,14 +473,16 @@ CREATE TABLE stock_indicators (
 ) COMMENT='技术指标数据表';
 ```
 
+Note: In PostgreSQL, use VARCHAR for ENUM fields
+
 #### 5.1.4 分析历史记录表 (analysis_history)
 ```sql
 CREATE TABLE analysis_history (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
-    analysis_type ENUM('index', 'stock') NOT NULL COMMENT '分析类型',
+    analysis_type VARCHAR(20) NOT NULL COMMENT '分析类型',
     analysis_time TIMESTAMP NOT NULL COMMENT '分析时间',
-    kline_type ENUM('day', 'week', 'month') NOT NULL,
+    kline_type VARCHAR(10) NOT NULL,
     input_data JSON COMMENT '输入数据摘要',
     analysis_result TEXT COMMENT 'AI分析结果',
     sentiment_score DECIMAL(3,2) COMMENT '情绪得分',
@@ -486,10 +492,12 @@ CREATE TABLE analysis_history (
 ) COMMENT='分析历史记录表';
 ```
 
+Note: In PostgreSQL, use VARCHAR for ENUM fields
+
 #### 5.1.5 财经新闻表 (financial_news)
 ```sql
 CREATE TABLE financial_news (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     title VARCHAR(500) NOT NULL COMMENT '新闻标题',
     content TEXT COMMENT '新闻内容',
     source VARCHAR(50) COMMENT '来源',
@@ -505,7 +513,7 @@ CREATE TABLE financial_news (
 #### 5.1.6 大盘情绪数据表 (market_sentiment)
 ```sql
 CREATE TABLE market_sentiment (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL,
     index_code VARCHAR(10) DEFAULT '000001' COMMENT '指数代码',
     sentiment_score DECIMAL(3,2) COMMENT '情绪得分(0-100)',
@@ -517,12 +525,14 @@ CREATE TABLE market_sentiment (
 ) COMMENT='大盘情绪数据表';
 ```
 
+Note: In PostgreSQL, use NUMERIC instead of DECIMAL
+
 #### 5.1.7 板块K线数据表 (sector_kline_data)
 ```sql
 CREATE TABLE sector_kline_data (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
-    kline_type ENUM('day', 'week', 'month') NOT NULL COMMENT 'K线类型',
+    kline_type VARCHAR(10) NOT NULL COMMENT 'K线类型',
     trade_date DATE NOT NULL COMMENT '交易日期',
     open_price DECIMAL(10,2) NOT NULL COMMENT '开盘价',
     high_price DECIMAL(10,2) NOT NULL COMMENT '最高价',
@@ -536,13 +546,15 @@ CREATE TABLE sector_kline_data (
 ) COMMENT='板块K线数据表';
 ```
 
+Note: In PostgreSQL, use VARCHAR for ENUM fields
+
 #### 5.1.8 板块技术指标数据表 (sector_indicators)
 ```sql
 CREATE TABLE sector_indicators (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     sector_code VARCHAR(20) NOT NULL COMMENT '板块代码',
     indicator_type VARCHAR(20) NOT NULL COMMENT '指标类型: MACD/KDJ等',
-    kline_type ENUM('day', 'week', 'month') NOT NULL,
+    kline_type VARCHAR(10) NOT NULL,
     trade_date DATE NOT NULL,
     indicator_data JSON NOT NULL COMMENT '指标数值(JSON格式)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -550,10 +562,12 @@ CREATE TABLE sector_indicators (
 ) COMMENT='板块技术指标数据表';
 ```
 
+Note: In PostgreSQL, use VARCHAR for ENUM fields
+
 #### 5.1.9 个股公司详细信息表 (stock_company_detail)
 ```sql
 CREATE TABLE stock_company_detail (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     stock_name VARCHAR(100) COMMENT '股票名称',
     short_name VARCHAR(100) COMMENT '公司简称',
@@ -571,7 +585,7 @@ CREATE TABLE stock_company_detail (
 #### 5.1.10 大盘资金流向数据表 (market_fund_flow)
 ```sql
 CREATE TABLE market_fund_flow (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL COMMENT '交易日期',
     sh_close_price DECIMAL(10,2) COMMENT '上证收盘价',
     sh_change_pct DECIMAL(10,4) COMMENT '上证涨跌幅(%)',
@@ -595,7 +609,7 @@ CREATE TABLE market_fund_flow (
 #### 5.1.11 市场活跃度数据表 (market_activity)
 ```sql
 CREATE TABLE market_activity (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL COMMENT '交易日期',
     rise_count INT COMMENT '上涨家数',
     limit_up_count INT COMMENT '涨停家数',
@@ -617,7 +631,7 @@ CREATE TABLE market_activity (
 #### 5.1.12 涨停股池数据表 (limit_up_stock_pool)
 ```sql
 CREATE TABLE limit_up_stock_pool (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL COMMENT '交易日期',
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     stock_name VARCHAR(50) NOT NULL COMMENT '股票名称',
@@ -644,7 +658,7 @@ CREATE TABLE limit_up_stock_pool (
 #### 5.1.13 个股分时数据表 (stock_intraday_data)
 ```sql
 CREATE TABLE stock_intraday_data (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     stock_code VARCHAR(10) NOT NULL COMMENT '股票代码',
     trade_date DATE NOT NULL COMMENT '交易日期',
     trade_time TIME NOT NULL COMMENT '交易时间',
@@ -666,7 +680,7 @@ CREATE TABLE stock_intraday_data (
 #### 5.1.14 概念板块指数数据表 (concept_sector_index)
 ```sql
 CREATE TABLE concept_sector_index (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     sector_name VARCHAR(100) NOT NULL COMMENT '概念板块名称',
     trade_date DATE NOT NULL COMMENT '交易日期',
     open_price DECIMAL(10,2) COMMENT '开盘价',
