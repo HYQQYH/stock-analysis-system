@@ -14,7 +14,7 @@ scipy==1.11.4
 akshare==1.18.19
 
 # Technical Indicators
-pandas-ta==0.3.14b0
+pandas-ta==0.4.71b0
 
 # HTTP Requests
 httpx==0.25.0

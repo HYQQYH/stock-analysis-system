@@ -1,0 +1,13 @@
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live",
+    "https://hub.rat.dev",
+    "https://docker.chenby.cn",
+    "https://docker.awsl9527.cn"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  }
+}
