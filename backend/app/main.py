@@ -9,6 +9,9 @@ from app.config import settings
 import logging
 from app.tasks import start_scheduler, stop_scheduler
 from app.api import tasks as tasks_api
+from app.api import stocks as stocks_api
+from app.api import market as market_api
+from app.api import analysis as analysis_api
 
 # Configure logging
 logging.basicConfig(level=settings.log_level)
@@ -106,12 +109,11 @@ async def general_exception_handler(request, exc):
     )
 
 
-# Include routers (will be added later)
-# app.include_router(stocks_router, prefix="/api/v1", tags=["stocks"])
-# app.include_router(market_router, prefix="/api/v1", tags=["market"])
-# app.include_router(analysis_router, prefix="/api/v1", tags=["analysis"])
-# app.include_router(news_router, prefix="/api/v1", tags=["news"])
-app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"]) 
+# Include routers
+app.include_router(stocks_api.router, prefix="/api/v1", tags=["stocks"])
+app.include_router(market_api.router, prefix="/api/v1", tags=["market"])
+app.include_router(analysis_api.router, prefix="/api/v1", tags=["analysis"])
+app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"])
 
 
 if __name__ == "__main__":
