@@ -23,7 +23,7 @@ from app.schemas.common import (
     ErrorCode
 )
 
-router = APIRouter(prefix="/api/v1/analysis", tags=["Analysis"])
+router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
 # In-memory storage for analysis tasks (in production, use Redis or database)
 analysis_tasks: Dict[str, dict] = {}
@@ -199,64 +199,6 @@ async def create_analysis(request: AnalysisRequest, background_tasks: Background
         )
 
 
-@router.get("/{analysis_id}", response_model=ApiResponse[AnalysisDetail])
-async def get_analysis_result(analysis_id: str):
-    """
-    Get analysis result or task status
-    
-    Supports polling to check the status and retrieve results.
-    
-    - **analysis_id**: Unique analysis ID
-    """
-    try:
-        # Check if task exists
-        if analysis_id not in analysis_tasks:
-            raise HTTPException(
-                status_code=HttpStatus.NOT_FOUND,
-                detail=f"未找到分析任务: {analysis_id}"
-            )
-        
-        task = analysis_tasks[analysis_id]
-        
-        # Check for timeout
-        if task["status"] in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]:
-            elapsed_seconds = (datetime.utcnow() - task["created_at"]).total_seconds()
-            if elapsed_seconds > ANALYSIS_TIMEOUT:
-                # Task timed out
-                task["status"] = AnalysisStatus.TIMEOUT
-                task["error_message"] = f"Analysis timeout after {ANALYSIS_TIMEOUT} seconds"
-                task["updated_at"] = datetime.utcnow()
-        
-        # Build response
-        from app.schemas.analysis import AnalysisResult
-        detail = AnalysisDetail(
-            analysis_id=task["analysis_id"],
-            stock_code=task["stock_code"],
-            analysis_mode=task["analysis_mode"],
-            status=task["status"],
-            analysis_time=task["analysis_time"],
-            input_data=task["input_data"],
-            result=task["result"],
-            error_message=task["error_message"],
-            created_at=task["created_at"],
-            updated_at=task["updated_at"]
-        )
-        
-        return ApiResponse(
-            code=HttpStatus.OK,
-            message="success",
-            data=detail
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
-            detail=f"获取分析结果失败: {str(e)}"
-        )
-
-
 @router.get("/history", response_model=ApiResponse[PaginatedResponse[AnalysisHistoryItem]])
 async def get_analysis_history(
     stock_code: Optional[str] = Query(None, description="Filter by stock code"),
@@ -322,6 +264,64 @@ async def get_analysis_history(
         raise HTTPException(
             status_code=HttpStatus.INTERNAL_SERVER_ERROR,
             detail=f"获取分析历史失败: {str(e)}"
+        )
+
+
+@router.get("/{analysis_id}", response_model=ApiResponse[AnalysisDetail])
+async def get_analysis_result(analysis_id: str):
+    """
+    Get analysis result or task status
+    
+    Supports polling to check the status and retrieve results.
+    
+    - **analysis_id**: Unique analysis ID
+    """
+    try:
+        # Check if task exists
+        if analysis_id not in analysis_tasks:
+            raise HTTPException(
+                status_code=HttpStatus.NOT_FOUND,
+                detail=f"未找到分析任务: {analysis_id}"
+            )
+        
+        task = analysis_tasks[analysis_id]
+        
+        # Check for timeout
+        if task["status"] in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]:
+            elapsed_seconds = (datetime.utcnow() - task["created_at"]).total_seconds()
+            if elapsed_seconds > ANALYSIS_TIMEOUT:
+                # Task timed out
+                task["status"] = AnalysisStatus.TIMEOUT
+                task["error_message"] = f"Analysis timeout after {ANALYSIS_TIMEOUT} seconds"
+                task["updated_at"] = datetime.utcnow()
+        
+        # Build response
+        from app.schemas.analysis import AnalysisResult
+        detail = AnalysisDetail(
+            analysis_id=task["analysis_id"],
+            stock_code=task["stock_code"],
+            analysis_mode=task["analysis_mode"],
+            status=task["status"],
+            analysis_time=task["analysis_time"],
+            input_data=task["input_data"],
+            result=task["result"],
+            error_message=task["error_message"],
+            created_at=task["created_at"],
+            updated_at=task["updated_at"]
+        )
+        
+        return ApiResponse(
+            code=HttpStatus.OK,
+            message="success",
+            data=detail
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            detail=f"获取分析结果失败: {str(e)}"
         )
 
 
