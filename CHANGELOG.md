@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed (2026-02-02)
+- **K-line Data Fetching Fixes**
+  - Fixed date format string error in stock_analysis.py (`%20250101` → `%Y%m%d`)
+  - Added standard column name mapping (close_price → close) for indicator calculator compatibility
+  - Added DateTimeEncoder in redis_cache.py to handle datetime/date object serialization
+
 ### Added (2026-01-25)
 - **Phase 1: Infrastructure Setup Completed**
   - Project directory structure initialized
