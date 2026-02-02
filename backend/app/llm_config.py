@@ -4,6 +4,7 @@ This module provides unified LLM client interfaces supporting multiple providers
 - OpenAI (GPT-3.5, GPT-4)
 - Aliyun DashScope (Qwen series)
 - Zhipu GLM (ChatGLM series)
+- MiniMax (M2.1 series)
 - Local models (Ollama)
 
 Features:
@@ -32,6 +33,7 @@ class LLMProvider(str, Enum):
     OPENAI = "openai"
     DASHSCOPE = "dashscope"  # Aliyun
     ZHIPU = "zhipu"  # Zhipu GLM
+    MINIMAX = "minimax"  # MiniMax M2.1
     OLLAMA = "ollama"  # Local models
 
 
@@ -473,6 +475,91 @@ class OllamaClient(LLMClientBase):
         }
 
 
+class MiniMaxClient(LLMClientBase):
+    """MiniMax M2.1 client using direct HTTP API"""
+    
+    MINIMAX_API_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2"
+    
+    def __init__(self, config: LLMConfig):
+        self.config = config
+        self.http_client: Optional[httpx.Client] = None
+    
+    def initialize(self) -> bool:
+        """Initialize MiniMax client"""
+        try:
+            api_key = self.config.api_key or settings.minimax_api_key
+            if not api_key:
+                raise ValueError("MiniMax API key not configured")
+            
+            self.http_client = httpx.Client(
+                timeout=httpx.Timeout(self.config.timeout),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            return True
+        except Exception as e:
+            print(f"Failed to initialize MiniMax client: {e}")
+            return False
+    
+    def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
+        """Invoke MiniMax LLM"""
+        start_time = time.time()
+        token_usage = LLMTokenUsage()
+        
+        try:
+            payload = {
+                "model": self.config.model,
+                "messages": messages,
+                "tokens_to_generate": self.config.max_tokens,
+                "temperature": self.config.temperature,
+                "top_p": self.config.top_p
+            }
+            
+            response = self.http_client.post(self.MINIMAX_API_URL, json=payload)
+            response.raise_for_status()
+            result = response.json()
+            
+            content = result["choices"][0]["message"]["content"]
+            usage = result.get("usage", {})
+            
+            prompt_tokens = usage.get("prompt_tokens", len(json.dumps(messages)) // 4)
+            completion_tokens = usage.get("completion_tokens", len(content) // 4)
+            cost = (prompt_tokens * 0.0002 + completion_tokens * 0.0002) / 1000
+            
+            token_usage.update(prompt_tokens, completion_tokens, cost)
+            
+            return LLMResponse(
+                content=content,
+                provider=self.config.provider.value,
+                model=self.config.model,
+                token_usage=token_usage,
+                response_time_ms=(time.time() - start_time) * 1000,
+                success=True
+            )
+        except Exception as e:
+            return LLMResponse(
+                content="",
+                provider=self.config.provider.value,
+                model=self.config.model,
+                token_usage=token_usage,
+                response_time_ms=(time.time() - start_time) * 1000,
+                success=False,
+                error_message=str(e)
+            )
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get MiniMax model info"""
+        return {
+            "provider": "minimax",
+            "model": self.config.model,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "features": ["streaming", "function_calling"]
+        }
+
+
 class LLMManager:
     """Unified LLM manager with provider selection and fallback"""
     
@@ -481,6 +568,7 @@ class LLMManager:
         LLMProvider.OPENAI: "gpt-3.5-turbo",
         LLMProvider.DASHSCOPE: "qwen-turbo",
         LLMProvider.ZHIPU: "glm-4",
+        LLMProvider.MINIMAX: "abab6.5s-chat",
         LLMProvider.OLLAMA: "llama2"
     }
     
@@ -489,6 +577,7 @@ class LLMManager:
         LLMProvider.OPENAI,
         LLMProvider.DASHSCOPE,
         LLMProvider.ZHIPU,
+        LLMProvider.MINIMAX,
         LLMProvider.OLLAMA
     ]
     
@@ -558,6 +647,8 @@ class LLMManager:
             api_key = settings.dashscope_api_key
         elif provider == LLMProvider.ZHIPU:
             api_key = settings.zhipu_api_key
+        elif provider == LLMProvider.MINIMAX:
+            api_key = settings.minimax_api_key
         
         return LLMConfig(
             provider=provider,
@@ -575,6 +666,7 @@ class LLMManager:
             LLMProvider.OPENAI: OpenAIClient,
             LLMProvider.DASHSCOPE: DashScopeClient,
             LLMProvider.ZHIPU: ZhipuGLMClient,
+            LLMProvider.MINIMAX: MiniMaxClient,
             LLMProvider.OLLAMA: OllamaClient,
         }
         

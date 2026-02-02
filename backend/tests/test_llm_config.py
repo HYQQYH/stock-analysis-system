@@ -13,6 +13,7 @@ from app.llm_config import (
     OpenAIClient,
     DashScopeClient,
     ZhipuGLMClient,
+    MiniMaxClient,
     OllamaClient,
     get_llm_manager,
     initialize_llm,
@@ -29,15 +30,17 @@ class TestLLMProvider:
         assert LLMProvider.OPENAI.value == "openai"
         assert LLMProvider.DASHSCOPE.value == "dashscope"
         assert LLMProvider.ZHIPU.value == "zhipu"
+        assert LLMProvider.MINIMAX.value == "minimax"
         assert LLMProvider.OLLAMA.value == "ollama"
     
     def test_provider_list(self):
         """Test all providers are defined"""
         providers = list(LLMProvider)
-        assert len(providers) == 4
+        assert len(providers) == 5
         assert LLMProvider.OPENAI in providers
         assert LLMProvider.DASHSCOPE in providers
         assert LLMProvider.ZHIPU in providers
+        assert LLMProvider.MINIMAX in providers
         assert LLMProvider.OLLAMA in providers
 
 
@@ -281,6 +284,39 @@ class TestOllamaClient:
         assert "local" in info["features"]
 
 
+class TestMiniMaxClient:
+    """Tests for MiniMaxClient class"""
+    
+    @patch('app.llm_config.settings')
+    def test_client_initialize_no_api_key(self, mock_settings):
+        """Test initialization fails without API key"""
+        mock_settings.minimax_api_key = None
+        config = LLMConfig(
+            provider=LLMProvider.MINIMAX,
+            model="abab6.5s-chat"
+        )
+        client = MiniMaxClient(config)
+        result = client.initialize()
+        assert result == False
+    
+    def test_get_model_info(self):
+        """Test getting MiniMax model info"""
+        config = LLMConfig(
+            provider=LLMProvider.MINIMAX,
+            model="abab6.5s-chat",
+            max_tokens=4096,
+            temperature=0.7
+        )
+        client = MiniMaxClient(config)
+        info = client.get_model_info()
+        
+        assert info["provider"] == "minimax"
+        assert info["model"] == "abab6.5s-chat"
+        assert info["max_tokens"] == 4096
+        assert "streaming" in info["features"]
+        assert "function_calling" in info["features"]
+
+
 class TestLLMManager:
     """Tests for LLMManager class"""
     
@@ -300,6 +336,7 @@ class TestLLMManager:
         assert manager.DEFAULT_MODELS[LLMProvider.OPENAI] == "gpt-3.5-turbo"
         assert manager.DEFAULT_MODELS[LLMProvider.DASHSCOPE] == "qwen-turbo"
         assert manager.DEFAULT_MODELS[LLMProvider.ZHIPU] == "glm-4"
+        assert manager.DEFAULT_MODELS[LLMProvider.MINIMAX] == "abab6.5s-chat"
         assert manager.DEFAULT_MODELS[LLMProvider.OLLAMA] == "llama2"
     
     def test_fallback_order(self):

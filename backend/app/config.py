@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     dashscope_api_key: Optional[str] = None
     baidu_api_key: Optional[str] = None
     zhipu_api_key: Optional[str] = None
+    minimax_api_key: Optional[str] = None
 
     # Logging
     log_level: str = "INFO"
