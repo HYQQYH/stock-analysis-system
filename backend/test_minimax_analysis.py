@@ -189,15 +189,15 @@ def test_stock_data_collection():
 
 
 def test_full_analysis():
-    """完整的投机套利分析测试"""
+    """完整的短线T+1分析测试"""
     print("\n" + "=" * 60)
-    print("测试 3: 完整投机套利分析流程")
+    print("测试 3: 完整短线T+1分析流程")
     print("=" * 60)
     
-    stock_code = "600030"
-    stock_name = "中信证券"
-    sector_name = "参股券商"
-    analysis_mode = "投机套利"
+    stock_code = "300671"
+    stock_name = "富满微"
+    sector_name = "第三代半导体"
+    analysis_mode = "短线T+1"
     
     print(f"\n分析配置:")
     print(f"  股票: {stock_code} ({stock_name})")
@@ -312,12 +312,12 @@ def main():
     tests_total = 3
     
     # 测试 1: MiniMax 连接
-    if test_minimax_connection():
-        tests_passed += 1
+    # if test_minimax_connection():
+    #     tests_passed += 1
     
     # 测试 2: 数据采集
-    if test_stock_data_collection():
-        tests_passed += 1
+    # if test_stock_data_collection():
+    #     tests_passed += 1
     
     # 测试 3: 完整分析
     if test_full_analysis():

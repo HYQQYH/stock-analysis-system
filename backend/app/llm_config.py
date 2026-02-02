@@ -476,9 +476,14 @@ class OllamaClient(LLMClientBase):
 
 
 class MiniMaxClient(LLMClientBase):
-    """MiniMax M2.1 client using direct HTTP API"""
+    """MiniMax M2.1 client using Anthropic API compatible interface
     
-    MINIMAX_API_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2"
+    MiniMax provides an Anthropic-compatible API endpoint.
+    See: https://api.minimaxi.com/anthropic
+    """
+    
+    # Anthropic compatible API URL
+    ANTHROPIC_API_URL = "https://api.minimaxi.com/anthropic/v1/messages"
     
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -495,7 +500,9 @@ class MiniMaxClient(LLMClientBase):
                 timeout=httpx.Timeout(self.config.timeout),
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01"
                 }
             )
             return True
@@ -504,28 +511,57 @@ class MiniMaxClient(LLMClientBase):
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
-        """Invoke MiniMax LLM"""
+        """Invoke MiniMax LLM using Anthropic compatible API"""
         start_time = time.time()
         token_usage = LLMTokenUsage()
         
         try:
+            # Convert messages to Anthropic format
+            # Extract system message if present
+            system_message = None
+            anthropic_messages = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_message = msg["content"]
+                else:
+                    # Anthropic format: content as array of text blocks
+                    anthropic_messages.append({
+                        "role": msg["role"],
+                        "content": [{"type": "text", "text": msg["content"]}]
+                    })
+            
+            # Build payload according to Anthropic API format
             payload = {
                 "model": self.config.model,
-                "messages": messages,
-                "tokens_to_generate": self.config.max_tokens,
+                "max_tokens": self.config.max_tokens,
                 "temperature": self.config.temperature,
-                "top_p": self.config.top_p
+                "messages": anthropic_messages
             }
             
-            response = self.http_client.post(self.MINIMAX_API_URL, json=payload)
+            # Add system message if present
+            if system_message:
+                payload["system"] = system_message
+            
+            response = self.http_client.post(self.ANTHROPIC_API_URL, json=payload)
+            
+            # Log the raw response for debugging
+            print(f"[MiniMax] Response status: {response.status_code}")
+            print(f"[MiniMax] Response body: {response.text[:500]}")
+            
             response.raise_for_status()
             result = response.json()
             
-            content = result["choices"][0]["message"]["content"]
+            # Parse Anthropic-style response
+            content_blocks = result.get("content", [])
+            content = ""
+            for block in content_blocks:
+                if block.get("type") == "text":
+                    content += block.get("text", "")
+            
             usage = result.get("usage", {})
             
-            prompt_tokens = usage.get("prompt_tokens", len(json.dumps(messages)) // 4)
-            completion_tokens = usage.get("completion_tokens", len(content) // 4)
+            prompt_tokens = usage.get("input_tokens", len(json.dumps(messages)) // 4)
+            completion_tokens = usage.get("output_tokens", len(content) // 4)
             cost = (prompt_tokens * 0.0002 + completion_tokens * 0.0002) / 1000
             
             token_usage.update(prompt_tokens, completion_tokens, cost)
@@ -567,8 +603,8 @@ class LLMManager:
     DEFAULT_MODELS = {
         LLMProvider.OPENAI: "gpt-3.5-turbo",
         LLMProvider.DASHSCOPE: "qwen-turbo",
-        LLMProvider.ZHIPU: "glm-4",
-        LLMProvider.MINIMAX: "abab6.5s-chat",
+        LLMProvider.ZHIPU: "glm-4.7",
+        LLMProvider.MINIMAX: "MiniMax-M2.1",  # MiniMax official model name
         LLMProvider.OLLAMA: "llama2"
     }
     

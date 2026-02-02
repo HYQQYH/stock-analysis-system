@@ -382,22 +382,23 @@ class AIAnalyzer:
             
             # Convert data to appropriate format
             kline_df = stock_data.get('kline_data')
-            if kline_df is not None:
-                kline_md = dataframe_to_markdown(kline_df)
-            else:
-                kline_md = stock_data.get('kline_str', '无K线数据')
+            
+            # if kline_df is not None:
+            #     kline_md = dataframe_to_markdown(kline_df)
+            # else:
+            #     kline_md = stock_data.get('kline_str', '无K线数据')
             
             indicators_df = stock_data.get('indicators_data')
-            if indicators_df is not None:
-                indicators_md = dataframe_to_markdown(indicators_df)
-            else:
-                indicators_md = stock_data.get('indicators_str', '无技术指标数据')
+            # if indicators_df is not None:
+            #     indicators_md = dataframe_to_markdown(indicators_df)
+            # else:
+            #     indicators_md = stock_data.get('indicators_str', '无技术指标数据')
             
             company_info = stock_data.get('company_info', {})
-            if isinstance(company_info, dict):
-                company_str = json.dumps(company_info, ensure_ascii=False, indent=2)
-            else:
-                company_str = str(company_info)
+            # if isinstance(company_info, dict):
+            #     company_str = json.dumps(company_info, ensure_ascii=False, indent=2)
+            # else:
+            #     company_str = str(company_info)
             
             # Prepare news
             news_str = "暂无相关新闻"
@@ -427,13 +428,13 @@ class AIAnalyzer:
                 }
                 
                 stock_weekly_df = stock_data.get('weekly_kline_data')
-                stock_weekly_md = dataframe_to_markdown(stock_weekly_df) if stock_weekly_df is not None else ""
+                # stock_weekly_md = dataframe_to_markdown(stock_weekly_df) if stock_weekly_df is not None else ""
                 
                 dapan_df = stock_data.get('market_kline_data')
-                dapan_md = dataframe_to_markdown(dapan_df) if dapan_df is not None else ""
+                # dapan_md = dataframe_to_markdown(dapan_df) if dapan_df is not None else ""
                 
                 market_activity_df = stock_data.get('market_activity_data')
-                market_activity_md = dataframe_to_markdown(market_activity_df) if market_activity_df is not None else ""
+                # market_activity_md = dataframe_to_markdown(market_activity_df) if market_activity_df is not None else ""
                 
                 concept_name = sector_data.get('sector_name', '') if sector_data else ""
                 concept_status = sector_data.get('kline_data') if sector_data else None

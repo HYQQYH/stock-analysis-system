@@ -546,7 +546,6 @@ class StockAnalysisService:
             return None
         
         indicators = TechnicalIndicators()
-        
         try:
             # Calculate all indicators at once
             full_indicators = self.indicator_calculator.calculate_all_indicators(kline_df)
@@ -562,7 +561,7 @@ class StockAnalysisService:
                 indicators.kdj = self.indicator_calculator.calculate_kdj(kline_df)
             except Exception as e:
                 logger.warning(f"Failed to calculate KDJ: {e}")
-            
+
             try:
                 indicators.rsi = self.indicator_calculator.calculate_rsi(kline_df)
             except Exception as e:
@@ -631,7 +630,7 @@ class StockAnalysisService:
             try:
                 df_sector = ak.stock_board_concept_index_ths(
                     symbol=sector_name,
-                    start_date="20250101",
+                    start_date="20260101",
                     end_date=datetime.now().strftime('%Y%m%d')
                 )
                 

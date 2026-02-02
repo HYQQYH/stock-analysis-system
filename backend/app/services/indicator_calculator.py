@@ -48,14 +48,15 @@ class IndicatorCalculator:
             logger.error("Error calculating MACD: %s", e)
             raise
 
-    def calculate_kdj(self, kline_df: pd.DataFrame, length: int = 9, signal: int = 3) -> pd.DataFrame:
+    def calculate_kdj(self, kline_df: pd.DataFrame, length: int = 9, m1: int = 3, m2: int = 3) -> pd.DataFrame:
         """
         Calculate KDJ (Stochastic Oscillator) indicator.
 
         Args:
             kline_df: DataFrame with OHLCV data (must contain 'high', 'low', 'close' columns)
             length: Period for KDJ calculation (default: 9)
-            signal: Signal period for smoothing (default: 3)
+            m1: Smoothing factor for %K (default: 3)
+            m2: Smoothing factor for %D (default: 3)
 
         Returns:
             DataFrame with original data plus KDJ columns: KDJ_K, KDJ_D, KDJ_J
@@ -67,33 +68,9 @@ class IndicatorCalculator:
             # Create a copy to avoid modifying the original DataFrame
             df = kline_df.copy()
 
-            # Calculate Stochastic Oscillator using pandas-ta
-            stoch = ta.stoch(
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                k=length,
-                d=signal,
-                smooth_k=signal
-            )
-
-            # Debug: Log columns returned by stoch function
-            logger.info("Stochastic columns: %s", stoch.columns.tolist())
-
-            # Get the actual column names from the result
-            stoch_cols = stoch.columns.tolist()
-            
-            # Create KDJ columns with standard names
-            if len(stoch_cols) >= 2:
-                # Get the first two columns (K and D values)
-                k_col = stoch_cols[0]
-                d_col = stoch_cols[1]
-                
-                df['KDJ_K'] = stoch[k_col]
-                df['KDJ_D'] = stoch[d_col]
-                
-                # Calculate J value: J = 3K - 2D
-                df['KDJ_J'] = 3 * df['KDJ_K'] - 2 * df['KDJ_D']
+            # Calculate KDJ - pandas-ta kdj requires high, low, close
+            kdj = ta.kdj(df["high"], df["low"], df["close"], n=length, m1=m1, m2=m2)
+            df = pd.concat([df, kdj], axis=1)
 
             logger.info("KDJ calculated successfully for %d rows", len(df))
             return df
@@ -119,7 +96,7 @@ class IndicatorCalculator:
         try:
             # Create a copy to avoid modifying the original DataFrame
             df = kline_df.copy()
-
+            
             # Calculate RSI using pandas-ta
             rsi = ta.rsi(df['close'], length=length)
 
@@ -164,14 +141,13 @@ class IndicatorCalculator:
         try:
             # Create a copy to avoid modifying the original DataFrame
             df = kline_df.copy()
-
             # Calculate MACD
             logger.info("Calculating MACD...")
             df = self.calculate_macd(df, fast=macd_fast, slow=macd_slow, signal=macd_signal)
 
             # Calculate KDJ
             logger.info("Calculating KDJ...")
-            df = self.calculate_kdj(df, length=kdj_length, signal=kdj_signal)
+            df = self.calculate_kdj(df, length=kdj_length, m1=kdj_signal, m2=kdj_signal)
 
             # Calculate RSI
             logger.info("Calculating RSI...")

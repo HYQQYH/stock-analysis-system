@@ -53,7 +53,7 @@ class DataCollector:
         if not isinstance(df, pd.DataFrame):
             # Try to coerce
             df = pd.DataFrame(df)
-        return df
+        return df[-60:] # Return last 60 entries by default
 
     def fetch_limit_up_pool(self) -> pd.DataFrame:
         """Fetch today's limit-up stock pool."""
