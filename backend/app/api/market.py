@@ -15,7 +15,7 @@ from app.schemas.market import (
 from app.schemas.common import ApiResponse, HttpStatus
 from app.services.indicator_calculator import IndicatorCalculator
 
-router = APIRouter(prefix="/api/v1/market", tags=["Market"])
+router = APIRouter(prefix="/market", tags=["Market"])
 indicator_calculator = IndicatorCalculator()
 
 
@@ -31,6 +31,7 @@ async def get_market_index(
     - **days**: Number of days to retrieve
     """
     try:
+        import pandas as pd
         # Map kline_type to akshare period
         period_map = {
             "day": "daily",
@@ -40,15 +41,17 @@ async def get_market_index(
         period = period_map.get(kline_type.lower(), "daily")
         
         # Calculate date range
-        end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end_date)
+        start_date = pd.Timestamp(start_date)
         
         # Fetch Shanghai Composite Index data (000001)
         df = ak.stock_zh_index_daily(
-            symbol="sh000001",
-            start_date=start_date,
-            end_date=end_date
+            symbol="sh000001"
         )
+        df['date'] = pd.to_datetime(df['date'])
+        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
         
         if df.empty:
             return ApiResponse(
@@ -67,7 +70,7 @@ async def get_market_index(
                 low_price=float(row.get('low', 0)),
                 close_price=float(row.get('close', 0)),
                 volume=int(row.get('volume', 0)),
-                amount=float(row.get('amount', 0))
+                amount=float(row.get('amount', 0)) # 接口无 amount 字段，默认为0
             )
             index_data.append(index_point)
         
@@ -157,12 +160,12 @@ async def get_market_sentiment(
 
 @router.get("/fund-flow", response_model=ApiResponse[FundFlowData])
 async def get_market_fund_flow(
-    date: str = Query(None, description="Date in YYYYMMDD format (default: latest)")
+    date: str = Query(None, description="Date in YYYY-MM-DD format (default: latest)")
 ):
     """
     Get market fund flow data
-    
-    - **date**: Optional date in YYYYMMDD format
+
+    - **date**: Optional date in YYYY-MM-DD format
     """
     try:
         # Fetch fund flow data
@@ -180,15 +183,17 @@ async def get_market_fund_flow(
             # Find data for specific date
             df_filtered = df[df['日期'] == date]
             if df_filtered.empty:
-                raise HTTPException(
-                    status_code=HttpStatus.NOT_FOUND,
-                    detail=f"未找到日期为 {date} 的资金流向数据"
+                return ApiResponse(
+                    code=HttpStatus.OK,
+                    message=f"未找到日期为 {date} 的资金流向数据",
+                    data=None
                 )
             latest_data = df_filtered.iloc[0]
         else:
             # Get latest data
-            latest_data = df.iloc[0]
+            latest_data = df.tail(1).iloc[0]
         
+        latest_data = latest_data.to_dict()
         # Create fund flow data
         fund_flow = FundFlowData(
             trade_date=latest_data.get('日期'),
@@ -253,6 +258,12 @@ async def get_limit_up_pool(
         # Convert DataFrame to list of LimitUpStock
         limit_up_stocks = []
         for _, row in df.iterrows():
+            # Convert time strings from '092500' format to '09:25:00' format
+            def format_time(time_str):
+                if time_str and isinstance(time_str, str) and len(time_str) == 6 and time_str.isdigit():
+                    return f"{time_str[:2]}:{time_str[2:4]}:{time_str[4:]}"
+                return None
+            
             stock = LimitUpStock(
                 stock_code=row.get('代码'),
                 stock_name=row.get('名称'),
@@ -263,8 +274,8 @@ async def get_limit_up_pool(
                 total_market_value=row.get('总市值'),
                 turnover_rate=row.get('换手率'),
                 limit_up_funds=row.get('封单资金'),
-                first_limit_time=row.get('首次封板时间'),
-                last_limit_time=row.get('最后封板时间'),
+                first_limit_time=format_time(row.get('首次封板时间')),
+                last_limit_time=format_time(row.get('最后封板时间')),
                 burst_count=row.get('炸板次数'),
                 limit_up_stats=row.get('涨停统计'),
                 continuous_limit_count=row.get('连板数'),
@@ -287,3 +298,5 @@ async def get_limit_up_pool(
             status_code=HttpStatus.INTERNAL_SERVER_ERROR,
             detail=f"获取涨停股池失败: {str(e)}"
         )
+
+

@@ -17,7 +17,7 @@ from app.schemas.stocks import (
 from app.schemas.common import ApiResponse, ErrorCode, HttpStatus
 from app.services.indicator_calculator import IndicatorCalculator
 
-router = APIRouter(prefix="/api/v1/stocks", tags=["Stocks"])
+router = APIRouter(prefix="/stocks", tags=["Stocks"])
 indicator_calculator = IndicatorCalculator()
 
 
@@ -29,14 +29,23 @@ async def search_stocks(request: StockSearchRequest):
     - **keyword**: Stock code (6 digits) or stock name
     """
     try:
+        search_term = request.keyword
+        
+        if not search_term:
+            return ApiResponse(
+                code=HttpStatus.BAD_REQUEST,
+                message="必须提供搜索关键词",
+                data=None
+            )
+        
         # TODO: Implement actual search logic from database or data source
         # For now, return mock data
         # In production, this would query the stock_info table or use akshare
         
-        # Check if keyword is a 6-digit stock code
-        if request.keyword.isdigit() and len(request.keyword) == 6:
+        # Check if search term is a 6-digit stock code
+        if search_term.isdigit() and len(search_term) == 6:
             # It's a stock code
-            code = request.keyword
+            code = search_term
             exchange = "SH" if code.startswith("6") else "SZ"
             
             # TODO: Fetch real stock info from database
@@ -150,7 +159,7 @@ async def get_stock_kline(
                 data=kline_data
             )
         )
-        
+    
     except Exception as e:
         raise HTTPException(
             status_code=HttpStatus.INTERNAL_SERVER_ERROR,
@@ -206,7 +215,7 @@ async def get_stock_indicators(
                 message="数据不足，无法计算技术指标",
                 data=None
             )
-        
+
         # Calculate technical indicators
         indicators_df = indicator_calculator.calculate_all_indicators(df)
         
@@ -288,12 +297,12 @@ async def get_stock_company_info(code: str):
         
         company_info = StockCompanyInfo(
             stock_code=code,
-            stock_name=company_data.get('股票简称'),
-            short_name=company_data.get('公司简称'),
-            main_business=company_data.get('主要业务及产品'),
-            industry=company_data.get('所属行业'),
-            region=company_data.get('所属地区'),
-            company_intro=company_data.get('公司简介')
+            stock_name=company_data.get('org_short_name_cn'), # 股票简称
+            short_name=company_data.get('org_short_name_cn'), # 股票简称
+            main_business=company_data.get('main_operation_business'), # 主要业务及产品
+            industry=company_data.get('affiliate_industry').get("ind_name"), # 所属行业
+            region=company_data.get('provincial_name'), # 所属地区
+            company_intro=company_data.get('org_cn_introduction') # 公司简介
         )
         
         return ApiResponse(

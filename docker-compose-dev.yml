@@ -44,27 +44,27 @@ services:
     restart: unless-stopped
 
   # Backend Service (optional - for testing)
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock_analysis_backend
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://stock_user:stock_pass_2026@postgres:5432/stock_analysis_db
-      REDIS_URL: redis://:redis_pass_2026@redis:6379
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    networks:
-      - stock_analysis_network
-    restart: unless-stopped
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: stock_analysis_backend
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://stock_user:stock_pass_2026@postgres:5432/stock_analysis_db
+  #     REDIS_URL: redis://:redis_pass_2026@redis:6379
+  #     PYTHONUNBUFFERED: 1
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./backend:/app
+  #   networks:
+  #     - stock_analysis_network
+  #   restart: unless-stopped
 
 volumes:
   postgres_data:

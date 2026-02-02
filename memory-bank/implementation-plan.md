@@ -434,7 +434,7 @@
   - `backend/app/services/stock_analysis.py` - 股票分析业务逻辑模块
   - `backend/tests/test_stock_analysis.py` - 单元测试文件 (40个测试全部通过)
 
-#### 步骤 9.2：创建大盘分析业务逻辑
+#### 步骤 9.2：创建大盘分析业务逻辑 ✅ 已完成
 - **任务**: 在 `backend/app/services/` 中创建 `market_analysis.py` 业务逻辑模块
   - 实现方法: `get_market_overview()` - 获取大盘全景数据
     - 获取上证指数 K 线和技术指标
@@ -444,9 +444,12 @@
     - 返回整合的大盘数据
   - 实现方法: `analyze_market_sentiment()` - 分析市场情绪
 - **验证方法**:
-  - 调用 get_market_overview 方法
-  - 验证返回数据包含所有大盘指标
-  - 验证数据的时间戳和日期信息正确
+  - ✅ 调用 get_market_overview 方法
+  - ✅ 验证返回数据包含所有大盘指标
+  - ✅ 验证数据的时间戳和日期信息正确
+- **创建文件**:
+  - `backend/app/services/market_analysis.py` - 大盘分析业务逻辑模块
+  - `backend/tests/test_market_analysis.py` - 单元测试文件 (30个测试全部通过)
 
 ---
 

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from app.config import settings
 import logging
 from app.tasks import start_scheduler, stop_scheduler
-from app.api import tasks as tasks_api
+# from app.api import tasks as tasks_api
 from app.api import stocks as stocks_api
 from app.api import market as market_api
 from app.api import analysis as analysis_api
@@ -44,7 +44,7 @@ app = FastAPI(
     description="A comprehensive stock analysis platform with AI-powered insights",
     version=settings.api_version,
     debug=settings.debug,
-    lifespan=lifespan
+    # lifespan=lifespan
 )
 
 # Configure CORS middleware
@@ -113,7 +113,7 @@ async def general_exception_handler(request, exc):
 app.include_router(stocks_api.router, prefix="/api/v1", tags=["stocks"])
 app.include_router(market_api.router, prefix="/api/v1", tags=["market"])
 app.include_router(analysis_api.router, prefix="/api/v1", tags=["analysis"])
-app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"])
+# app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"])
 
 
 if __name__ == "__main__":
