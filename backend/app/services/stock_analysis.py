@@ -423,7 +423,10 @@ class StockAnalysisService:
         end_date = datetime.now().strftime('%Y%m%d')
         
         # Daily K-line (last 30 days for short-term analysis)
-        start_date_daily = datetime.now().strftime('%20250101')
+        start_date_daily = datetime.now().strftime('%Y%m%d')  # Use current date as start
+        # Calculate a reasonable start date (30 days ago)
+        from datetime import timedelta
+        start_date_daily = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
         try:
             df_daily = self.data_collector.fetch_kline_data(
                 stock_code, period="daily", start=start_date_daily, end=end_date
@@ -513,6 +516,19 @@ class StockAnalysisService:
         for col in required_cols:
             if col not in df.columns:
                 df[col] = None
+        
+        # Add standard column names for indicator calculation compatibility
+        # These are needed by indicator_calculator.py which uses 'close', 'high', 'low'
+        if 'close_price' in df.columns and 'close' not in df.columns:
+            df['close'] = df['close_price']
+        if 'high_price' in df.columns and 'high' not in df.columns:
+            df['high'] = df['high_price']
+        if 'low_price' in df.columns and 'low' not in df.columns:
+            df['low'] = df['low_price']
+        if 'open_price' in df.columns and 'open' not in df.columns:
+            df['open'] = df['open_price']
+        if 'volume' in df.columns and 'vol' not in df.columns:
+            df['vol'] = df['volume']
         
         return df
     

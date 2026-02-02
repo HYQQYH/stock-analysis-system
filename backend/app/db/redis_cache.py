@@ -3,10 +3,21 @@
 import redis
 import json
 import logging
+from datetime import date, datetime
 from typing import Any, Optional
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime and date objects"""
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        if hasattr(obj, '__iter__'):
+            return list(obj)
+        return super().default(obj)
 
 
 class RedisClient:
@@ -76,7 +87,7 @@ class RedisClient:
         if self.client is None:
             return False
         try:
-            json_value = json.dumps(value, ensure_ascii=False)
+            json_value = json.dumps(value, ensure_ascii=False, cls=DateTimeEncoder)
             if ttl:
                 return self.client.setex(key, ttl, json_value)
             else:
