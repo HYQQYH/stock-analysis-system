@@ -6,15 +6,15 @@ import { stockApi, analysisApi } from '../services/api';
 const { Option } = Select;
 const { Search } = Input;
 
-type AnalysisMode = '基础面技术面综合' | '波段交易' | '短线T+1' | '涨停反包' | '投机套利' | '公司估值';
+type AnalysisMode = '基础面技术面综合分析' | '波段交易分析' | '短线T+1分析' | '涨停反包分析' | '投机套利分析' | '公司估值分析';
 
 const ANALYSIS_MODES: AnalysisMode[] = [
-  '基础面技术面综合',
-  '波段交易',
-  '短线T+1',
-  '涨停反包',
-  '投机套利',
-  '公司估值',
+  '基础面技术面综合分析',
+  '波段交易分析',
+  '短线T+1分析',
+  '涨停反包分析',
+  '投机套利分析',
+  '公司估值分析',
 ];
 
 interface AnalysisResultData {
@@ -56,7 +56,7 @@ function StockAnalysis() {
   // 组件状态
   const [stockCode, setStockCode] = useState('');
   const [inputSectorName, setInputSectorName] = useState('');
-  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('短线T+1');
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('短线T+1分析');
   const [result, setResult] = useState<{
     summary: string;
     details: string;
@@ -151,10 +151,11 @@ function StockAnalysis() {
     try {
       // 调用后端分析 API（异步模式）
       const submitResponse = await analysisApi.submitAnalysis({
-        stockCode,
-        klineType,
-        sectorNames: inputSectorName ? [inputSectorName] : [],
-        includeNews: true,
+        stock_code: stockCode,
+        analysis_mode: analysisMode,
+        kline_type: klineType,
+        sector_names: inputSectorName ? [inputSectorName] : [],
+        include_news: true,
       });
 
       // 轮询获取结果
@@ -164,7 +165,7 @@ function StockAnalysis() {
       while (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const resultResponse = await analysisApi.getAnalysisResult(submitResponse.analysisId);
+        const resultResponse = await analysisApi.getAnalysisResult(submitResponse.analysis_id);
         
         if (resultResponse.status === 'completed') {
           const data = resultResponse;

@@ -2,12 +2,12 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type AnalysisMode = 
-  | '基础面技术面综合'
-  | '波段交易'
-  | '短线T+1'
-  | '涨停反包'
-  | '投机套利'
-  | '公司估值';
+  | '基础面技术面综合分析'
+  | '波段交易分析'
+  | '短线T+1分析'
+  | '涨停反包分析'
+  | '投机套利分析'
+  | '公司估值分析';
 
 export interface TradingAdvice {
   direction: '买入' | '卖出' | '持有' | '观望';

@@ -63,8 +63,8 @@ export const marketApi = {
 
 // 分析相关 API
 export const analysisApi = {
-  submitAnalysis: (data: { stockCode: string; klineType: string; sectorNames?: string[]; includeNews?: boolean }) => 
-    post<{ analysisId: string; status: string }>('/analysis', data),
+  submitAnalysis: (data: { stock_code: string; analysis_mode: string; kline_type: string; sector_names?: string[]; include_news?: boolean }) => 
+    post<{ analysis_id: string; status: string }>('/analysis', data),
   
   getAnalysisResult: (analysisId: string) => 
     get<{
