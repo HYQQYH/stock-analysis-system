@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, Select, Space, Alert, Result } from 'antd';
+import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin } from 'antd';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useStockStore, useAnalysisStore, useLoadingStore, useToastStore } from '../store';
 import { stockApi, analysisApi } from '../services/api';
 
@@ -19,6 +21,7 @@ const ANALYSIS_MODES: AnalysisMode[] = [
 
 interface AnalysisResultData {
   id: string;
+  analysisId: string;
   stockCode: string;
   analysisMode: string;
   analysisTime: string;
@@ -57,18 +60,21 @@ function StockAnalysis() {
   const [stockCode, setStockCode] = useState('');
   const [inputSectorName, setInputSectorName] = useState('');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('短线T+1分析');
+  // 注意：后端返回snake_case字段名
   const [result, setResult] = useState<{
     summary: string;
     details: string;
     advice: {
       direction: string;
-      targetPrice?: number;
-      stopLoss?: number;
-      takeProfit?: number;
-      holdingPeriod?: number;
-      riskLevel?: string;
+      target_price?: number;
+      stop_loss?: number;
+      take_profit?: number;
+      holding_period?: number;
+      risk_level?: string;
     };
-    confidenceScore: number;
+    confidence_score: number;
+    llm_model?: string;
+    trend?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,35 +166,38 @@ function StockAnalysis() {
 
       // 轮询获取结果
       let attempts = 0;
-      const maxAttempts = 60;
+      const maxAttempts = 120; // 增加超时时间
 
       while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         const resultResponse = await analysisApi.getAnalysisResult(submitResponse.analysis_id);
         
         if (resultResponse.status === 'completed') {
           const data = resultResponse;
           
+          // 解析分析结果 - 后端返回的数据嵌套在 result 中
+          const resultData = data.result;
           const analysisResult = {
-            summary: data.analysisResult,
-            details: data.analysisResult,
-            advice: data.tradingAdvice,
-            confidenceScore: data.confidenceScore,
+            summary: resultData?.analysis_result?.substring(0, 200) || '暂无分析结果',
+            details: resultData?.analysis_result || '暂无分析结果',
+            advice: resultData?.trading_advice || { direction: '观望' },
+            confidence_score: resultData?.confidence_score || 0,
+            llm_model: resultData?.llm_model,
           };
           
           setResult(analysisResult);
           
           // 保存到历史记录
           addAnalysis({
-            id: data.id,
-            stockCode: data.stockCode,
+            id: data.id || data.analysis_id || submitResponse.analysis_id,
+            stockCode: data.stock_code,
             analysisMode,
-            analysisTime: data.analysisTime,
-            summary: data.analysisResult.substring(0, 200),
-            details: data.analysisResult,
-            tradingAdvice: data.tradingAdvice as any,
-            confidenceScore: data.confidenceScore,
+            analysisTime: data.analysis_time || new Date().toISOString(),
+            summary: resultData?.analysis_result?.substring(0, 200) || '暂无分析结果',
+            details: resultData?.analysis_result || '暂无分析结果',
+            tradingAdvice: resultData?.trading_advice as any,
+            confidenceScore: resultData?.confidence_score || 0,
             status: 'completed',
           });
           
@@ -221,6 +230,23 @@ function StockAnalysis() {
     setError(null);
     clearStockData();
     showToast('已清空查询', 'info');
+  };
+
+  // 获取置信度颜色
+  const getConfidenceColor = (score: number) => {
+    if (score >= 0.8) return '#52c41a';
+    if (score >= 0.6) return '#faad14';
+    return '#ff4d4f';
+  };
+
+  // 获取交易方向颜色
+  const getDirectionColor = (direction: string) => {
+    switch (direction) {
+      case '买入': return 'green';
+      case '卖出': return 'red';
+      case '持有': return 'blue';
+      default: return 'default';
+    }
   };
 
   return (
@@ -372,57 +398,106 @@ function StockAnalysis() {
 
       {/* 分析结果 */}
       {result && (
-        <Card title="分析结果" className="mb-6">
-          {/* 置信度 */}
-          <div className="mb-4 flex items-center gap-4">
+        <Card title="AI分析结果" className="mb-6">
+          {/* 置信度和元信息 */}
+          <div className="mb-4 flex flex-wrap items-center gap-4">
             <span className="text-gray-600">置信度：</span>
             <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
-                className={`h-full ${result.confidenceScore > 0.7 ? 'bg-green-500' : result.confidenceScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                style={{ width: `${result.confidenceScore * 100}%` }}
+                className="h-full transition-all duration-300"
+                style={{ 
+                  width: `${result.confidence_score * 100}%`,
+                  backgroundColor: getConfidenceColor(result.confidence_score)
+                }}
               />
             </div>
-            <span className="font-medium">{(result.confidenceScore * 100).toFixed(0)}%</span>
+            <span className="font-medium" style={{ color: getConfidenceColor(result.confidence_score) }}>
+              {(result.confidence_score * 100).toFixed(0)}%
+            </span>
+            {result.llm_model && (
+              <Tag color="purple">AI模型: {result.llm_model}</Tag>
+            )}
+            {result.trend && (
+              <Tag color={result.trend === '上涨' ? 'green' : result.trend === '下跌' ? 'red' : 'orange'}>
+                趋势: {result.trend}
+              </Tag>
+            )}
           </div>
 
           {/* 交易建议 */}
           <Card size="small" className="mb-4 bg-gray-50">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div>
                 <div className="text-gray-500 text-sm">交易方向</div>
-                <div className={`font-bold ${
-                  result.advice.direction === '买入' ? 'text-green-600' : 
-                  result.advice.direction === '卖出' ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {result.advice.direction}
-                </div>
+                <Tag color={getDirectionColor(result.advice?.direction)} className="text-base mt-1">
+                  {result.advice?.direction || '暂无建议'}
+                </Tag>
               </div>
-              {result.advice.targetPrice && (
+              {result.advice?.target_price && (
                 <div>
                   <div className="text-gray-500 text-sm">目标价</div>
-                  <div className="font-bold text-green-600">{result.advice.targetPrice}</div>
+                  <div className="font-bold text-green-600 text-lg">{result.advice.target_price}</div>
                 </div>
               )}
-              {result.advice.stopLoss && (
+              {result.advice?.stop_loss && (
                 <div>
                   <div className="text-gray-500 text-sm">止损价</div>
-                  <div className="font-bold text-red-600">{result.advice.stopLoss}</div>
+                  <div className="font-bold text-red-600 text-lg">{result.advice.stop_loss}</div>
                 </div>
               )}
-              {result.advice.holdingPeriod && (
+              {result.advice?.take_profit && (
+                <div>
+                  <div className="text-gray-500 text-sm">止盈目标</div>
+                  <div className="font-bold text-green-600 text-lg">{result.advice.take_profit}</div>
+                </div>
+              )}
+              {result.advice?.holding_period && (
                 <div>
                   <div className="text-gray-500 text-sm">持仓周期</div>
-                  <div className="font-bold">{result.advice.holdingPeriod}天</div>
+                  <div className="font-bold text-lg">{result.advice.holding_period}天</div>
+                </div>
+              )}
+              {result.advice?.risk_level && (
+                <div>
+                  <div className="text-gray-500 text-sm">风险等级</div>
+                  <Tag color={result.advice.risk_level === '低' ? 'green' : result.advice.risk_level === '中' ? 'orange' : 'red'}>
+                    {result.advice.risk_level}
+                  </Tag>
                 </div>
               )}
             </div>
           </Card>
 
-          {/* 分析详情 */}
+          {/* Markdown 分析详情 */}
           <div className="prose max-w-none">
-            <pre className="whitespace-pre-wrap text-gray-700 font-sans">
-              {result.details}
-            </pre>
+            <Card title="详细分析报告" size="small" className="bg-white">
+              <div className="markdown-body ai-analysis-content">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-6 mb-4 text-gray-800" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-gray-800" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-gray-800" {...props} />,
+                    p: ({node, ...props}) => <p className="my-3 text-gray-700 leading-relaxed" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-3 text-gray-700" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-3 text-gray-700" {...props} />,
+                    li: ({node, ...props}) => <li className="my-1" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic" {...props} />,
+                    code: ({node, ...props}) => <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800" {...props} />,
+                    pre: ({node, ...props}) => <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto my-4" {...props} />,
+                    table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border border-gray-200" {...props} /></div>,
+                    th: ({node, ...props}) => <th className="border border-gray-300 px-4 py-2 bg-gray-50 font-semibold text-left" {...props} />,
+                    td: ({node, ...props}) => <td className="border border-gray-300 px-4 py-2" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                    em: ({node, ...props}) => <em className="italic text-gray-700" {...props} />,
+                    a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
+                    hr: ({node}) => <hr className="my-6 border-gray-300" />,
+                  }}
+                >
+                  {result.details}
+                </ReactMarkdown>
+              </div>
+            </Card>
           </div>
         </Card>
       )}

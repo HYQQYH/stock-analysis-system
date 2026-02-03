@@ -17,13 +17,13 @@ api.interceptors.response.use(
 
 // API 辅助函数
 async function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-  const response = await api.get<T>(url, { params });
-  return response.data;
+  const response = await api.get<{ data: T }>(url, { params });
+  return response.data.data;
 }
 
 async function post<T>(url: string, data?: Record<string, unknown>): Promise<T> {
-  const response = await api.post<T>(url, data);
-  return response.data;
+  const response = await api.post<{ data: T }>(url, data);
+  return response.data.data;
 }
 
 async function del(url: string): Promise<void> {
@@ -66,12 +66,17 @@ export const analysisApi = {
   submitAnalysis: (data: { stock_code: string; analysis_mode: string; kline_type: string; sector_names?: string[]; include_news?: boolean }) => 
     post<{ analysis_id: string; status: string }>('/analysis', data),
   
+  // 注意：后端返回的是 AnalysisDetail 结构，分析结果在 result.analysis_result 中
   getAnalysisResult: (analysisId: string) => 
     get<{
-      id: string; stockCode: string; analysisMode: string; analysisTime: string;
-      analysisResult: string;
-      tradingAdvice: { direction: string; targetPrice?: number; stopLoss?: number; takeProfit?: number; holdingPeriod?: number; riskLevel?: string };
-      confidenceScore: number; status: string;
+      id: string; analysis_id: string; stock_code: string; analysis_mode: string; status: string;
+      analysis_time: string;
+      result: {
+        analysis_result: string;
+        trading_advice: { direction: string; target_price?: number; stop_loss?: number; take_profit?: number; holding_period?: number; risk_level?: string };
+        confidence_score: number;
+        llm_model?: string;
+      };
     }>(`/analysis/${analysisId}`),
   
   getHistory: (params?: { page?: number; pageSize?: number; stockCode?: string }) => 

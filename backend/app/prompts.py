@@ -1177,7 +1177,7 @@ def build_duanxian_prompt(stock_info, stock_status, stock_weekly_status,
     stock_weekly_md = dataframe_to_markdown(stock_weekly_status)
     dapan_md = dataframe_to_markdown(dapan)
     market_activity_md = dataframe_to_markdown(market_activity)
-    concept_status_md = dataframe_to_markdown(concept_status) if not concept_status.empty else "无板块数据"
+    concept_status_md = dataframe_to_markdown(concept_status) if concept_status is not None and not concept_status.empty else "无板块数据"
     
     # Format stock info
     if isinstance(stock_info, dict):

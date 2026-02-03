@@ -368,7 +368,7 @@ class AIAnalyzer:
             StockAnalysisResult with structured analysis
         """
         start_time = time.time()
-        
+        # import ipdb; ipdb.set_trace()
         try:
             # Extract stock info
             stock_code = stock_data.get('stock_code', 'N/A')
@@ -505,6 +505,8 @@ class AIAnalyzer:
                     financial_data=stock_data.get('financial_data')
                 )
             
+            logger.info("Generated Prompt:")
+            logger.info(prompt)
             # Create messages
             messages = [
                 create_chat_message("system", "你是一位专业的股票分析师，请提供客观、准确的分析。"),
@@ -513,6 +515,8 @@ class AIAnalyzer:
             
             # Invoke LLM with retry
             response = self._invoke_with_retry(messages)
+            logger.info("LLM Response:")
+            logger.info(response.content)
             
             # Parse response
             analysis_content = response.content
