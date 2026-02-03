@@ -401,18 +401,36 @@
   - 验证数据按日期倒序排列
   - 验证 API 性能（响应时间 < 1 秒）
 
-#### 步骤 8.4：创建分析历史记录 API
+#### 步骤 8.4：创建分析历史记录 API ✅ 已完成
 - **任务**: 在 `backend/app/api/` 中创建 `analysis.py` 路由文件
  - 实现接口: POST /api/v1/analysis - 创建分析任务（提交后异步执行）
    - 行为说明：该接口应立即返回任务 ID（`analysis_id`）和初始状态（`pending`），真实分析在后台异步执行以避免阻塞请求。
  - 实现接口: GET /api/v1/analysis/{analysis_id} - 获取分析结果或任务状态（支持轮询）
- - 实现接口: GET /api/v1/analysis/history - 获取分析历史记录
+ - 实现接口: GET /api/v1/analysis/history - 获取分析历史记录（支持分页和股票代码筛选）
  - 实现接口: DELETE /api/v1/analysis/{analysis_id} - 删除分析记录
  - **验证方法**:
   - 调用 POST 接口创建分析任务，验证立即返回 `analysis_id` 和 `pending` 状态
   - 在后台任务完成后，通过 GET 接口获取最终结果并验证结构化字段（analysis_result、trading_advice、confidence_score 等）
   - 验证超时和失败场景：当后台任务在预设超时时间内未完成，GET 接口应返回失败状态及错误码（例如：`analysis_timeout`）和可读错误信息
   - 验证轮询策略在高并发请求下的稳定性（防止频繁查询导致资源浪费）
+  
+#### 步骤 8.5：创建前端历史分析记录组件 ✅ 已完成（2026-02-03）
+- **任务**: 在 `frontend/src/components/` 中创建 `HistoryList.tsx` 历史记录组件
+  - 实现从后端 API 获取历史分析记录（支持分页和按股票代码筛选）
+  - 实现本地存储降级策略（后端调用失败时使用本地持久化数据）
+  - 实现查看详情功能（点击查看分析结果详情）
+  - 实现删除历史记录功能
+  - 实现刷新和分页功能
+  - 集成到 StockAnalysis 页面中展示历史记录
+- **创建文件**:
+  - `frontend/src/components/HistoryList.tsx` - 历史分析记录组件
+  - `frontend/src/components/index.ts` - 更新组件导出
+  - 更新 `frontend/src/pages/StockAnalysis.tsx` - 集成 HistoryList 组件
+- **验证方法**:
+  - 在股票分析页面底部显示历史记录列表
+  - 验证分页功能正常工作
+  - 验证筛选功能按股票代码过滤
+  - 验证删除功能正常工作
 
 ### 4.3 业务逻辑整合
 

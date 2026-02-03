@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin } from 'antd';
+import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin, Collapse } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStockStore, useAnalysisStore, useLoadingStore, useToastStore } from '../store';
 import { stockApi, analysisApi } from '../services/api';
+import { HistoryList } from '../components';
 
 const { Option } = Select;
 const { Search } = Input;
@@ -501,6 +502,9 @@ function StockAnalysis() {
           </div>
         </Card>
       )}
+
+      {/* 历史分析记录列表 */}
+      <HistoryList stockCode={stockCode || undefined} />
 
       {/* 初始状态提示 */}
       {!currentStock && !result && !analysisLoading && (

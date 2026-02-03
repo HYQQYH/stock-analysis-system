@@ -79,8 +79,9 @@ export const analysisApi = {
       };
     }>(`/analysis/${analysisId}`),
   
+  // 后端返回格式: { code: 200, message: "success", data: { total: N, page: 1, page_size: 10, data: [...] } }
   getHistory: (params?: { page?: number; pageSize?: number; stockCode?: string }) => 
-    get<{ total: number; list: Array<{ id: string; stockCode: string; analysisMode: string; analysisTime: string; confidenceScore: number }> }>('/analysis/history', params),
+    get<{ total: number; page: number; page_size: number; data: Array<{ id: string; stock_code: string; analysis_mode: string; status: string; analysis_time: string; confidence_score: number; created_at: string }> }>('/analysis/history', params),
   
   deleteAnalysis: (id: string) => del(`/analysis/${id}`),
 };
