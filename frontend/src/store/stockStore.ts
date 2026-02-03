@@ -8,7 +8,7 @@ export interface KlineData {
   low: number;
   close: number;
   volume: number;
-  amount: number;
+  amount?: number;
 }
 
 export interface StockInfo {

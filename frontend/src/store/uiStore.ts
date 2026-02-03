@@ -21,7 +21,7 @@ export const useModalStore = create<ModalState>()(
     }),
     {
       name: 'modal-storage',
-      partialize: () => ({}), // 不持久化模态框状态
+      partialize: () => ({}),
     }
   )
 );
@@ -43,7 +43,6 @@ export const useToastStore = create<ToastState>()(
       
       showToast: (message, type = 'info') => {
         set({ message, type, visible: true });
-        // 3秒后自动隐藏
         setTimeout(() => set({ visible: false }), 3000);
       },
       
@@ -60,10 +59,14 @@ interface LoadingState {
   globalLoading: boolean;
   analysisLoading: boolean;
   dataLoading: boolean;
+  marketLoading: boolean;
+  newsLoading: boolean;
   
   setGlobalLoading: (loading: boolean) => void;
   setAnalysisLoading: (loading: boolean) => void;
   setDataLoading: (loading: boolean) => void;
+  setMarketLoading: (loading: boolean) => void;
+  setNewsLoading: (loading: boolean) => void;
   resetLoading: () => void;
 }
 
@@ -73,15 +76,21 @@ export const useLoadingStore = create<LoadingState>()(
       globalLoading: false,
       analysisLoading: false,
       dataLoading: false,
+      marketLoading: false,
+      newsLoading: false,
       
       setGlobalLoading: (loading) => set({ globalLoading: loading }),
       setAnalysisLoading: (loading) => set({ analysisLoading: loading }),
       setDataLoading: (loading) => set({ dataLoading: loading }),
+      setMarketLoading: (loading) => set({ marketLoading: loading }),
+      setNewsLoading: (loading) => set({ newsLoading: loading }),
       
       resetLoading: () => set({
         globalLoading: false,
         analysisLoading: false,
         dataLoading: false,
+        marketLoading: false,
+        newsLoading: false,
       }),
     }),
     {
