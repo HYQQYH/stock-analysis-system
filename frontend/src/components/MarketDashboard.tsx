@@ -120,8 +120,8 @@ export function MarketDashboard({
           <Card size="small" className="shadow-sm">
             <div className="text-gray-500 text-sm mb-1">多空比例</div>
             {sentimentData ? (
-              <div className="text-2xl font-bold">
-                {sentimentData.bullBearRatio.toFixed(2)}
+            <div className="text-2xl font-bold">
+                {sentimentData.bullBearRatio != null ? sentimentData.bullBearRatio.toFixed(2) : '--'}
               </div>
             ) : (
               <div className="text-gray-400">--</div>
@@ -143,13 +143,13 @@ export function MarketDashboard({
                   <div className="text-gray-500 text-sm">{item.type}</div>
                   <div
                     className={`font-bold ${
-                      item.netInflow > 0 ? 'text-red-500' : item.netInflow < 0 ? 'text-green-500' : 'text-gray-500'
+                      (item.netInflow ?? 0) > 0 ? 'text-red-500' : (item.netInflow ?? 0) < 0 ? 'text-green-500' : 'text-gray-500'
                     }`}
                   >
-                    {item.netInflow > 0 ? '+' : ''}
-                    {(item.netInflow / 10000).toFixed(2)}万
+                    {(item.netInflow ?? 0) > 0 ? '+' : ''}
+                    {((item.netInflow ?? 0) / 10000).toFixed(2)}万
                   </div>
-                  <div className="text-xs text-gray-400">{item.ratio.toFixed(2)}%</div>
+                  <div className="text-xs text-gray-400">{(item.ratio ?? 0).toFixed(2)}%</div>
                 </div>
               </Col>
             ))}
@@ -179,8 +179,8 @@ export function MarketDashboard({
                 title: '涨幅',
                 dataIndex: 'changePct',
                 key: 'changePct',
-                render: (v: number) => (
-                  <Tag color="red">{v > 0 ? '+' : ''}{v.toFixed(2)}%</Tag>
+                render: (v?: number) => (
+                  <Tag color="red">{v != null ? (v > 0 ? '+' : '') + v.toFixed(2) + '%' : '-'}</Tag>
                 ),
               },
               {
