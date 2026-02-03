@@ -1,0 +1,133 @@
+{
+  "test_time": "2026-02-03T16:20:58.780105",
+  "base_url": "http://localhost:8000",
+  "total_tests": 17,
+  "passed": 13,
+  "failed": 4,
+  "pass_rate": "76.5%",
+  "results": [
+    {
+      "scenario": "场景1",
+      "test_name": "获取股票基本信息(600000)",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "股票名称: 浦发银行"
+    },
+    {
+      "scenario": "场景1",
+      "test_name": "获取K线数据(日线)",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "获取 41 条K线数据"
+    },
+    {
+      "scenario": "场景1",
+      "test_name": "获取技术指标",
+      "passed": false,
+      "status": "❌ 失败",
+      "details": "获取 0 条指标数据"
+    },
+    {
+      "scenario": "场景1",
+      "test_name": "创建股票分析任务",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "analysis_id: 5aca4420-4ea4-41a3-8524-f02945577268"
+    },
+    {
+      "scenario": "场景1",
+      "test_name": "获取分析结果",
+      "passed": false,
+      "status": "❌ 失败",
+      "details": "分析完成，结果长度: 0 字符"
+    },
+    {
+      "scenario": "场景2",
+      "test_name": "获取上证指数数据",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "获取 40 条指数数据"
+    },
+    {
+      "scenario": "场景2",
+      "test_name": "获取大盘情绪数据",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "情绪得分: 88.56"
+    },
+    {
+      "scenario": "场景2",
+      "test_name": "获取资金流向数据",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "主力净流入: 14400286720.0"
+    },
+    {
+      "scenario": "场景2",
+      "test_name": "获取涨停股池",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "共 69 只涨停股票"
+    },
+    {
+      "scenario": "场景3",
+      "test_name": "获取最新新闻列表",
+      "passed": false,
+      "status": "❌ 失败",
+      "details": "获取 0 条新闻"
+    },
+    {
+      "scenario": "场景3",
+      "test_name": "检查新闻API根路径",
+      "passed": false,
+      "status": "❌ 失败",
+      "details": "Status: 404"
+    },
+    {
+      "scenario": "场景3",
+      "test_name": "触发新闻爬取",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "Status: 404"
+    },
+    {
+      "scenario": "场景4",
+      "test_name": "获取分析历史记录",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "共 0 条历史记录"
+    },
+    {
+      "scenario": "场景4",
+      "test_name": "按股票代码查询历史",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "Status: 200"
+    },
+    {
+      "scenario": "场景4",
+      "test_name": "测试分页功能",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "分页信息: {}"
+    },
+    {
+      "scenario": "额外",
+      "test_name": "健康检查",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "Status: 200"
+    },
+    {
+      "scenario": "额外",
+      "test_name": "API文档(Swagger)",
+      "passed": true,
+      "status": "✅ 通过",
+      "details": "Status: 200"
+    }
+  ],
+  "suggestions": [
+    "新闻模块需要完善：实现 /api/v1/news 相关的 API 端点",
+    "技术指标计算：需要确保 K 线数据包含 'close' 列"
+  ]
+}
