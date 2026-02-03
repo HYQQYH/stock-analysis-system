@@ -424,9 +424,9 @@ class StockAnalysisService:
         
         # Daily K-line (last 30 days for short-term analysis)
         start_date_daily = datetime.now().strftime('%Y%m%d')  # Use current date as start
-        # Calculate a reasonable start date (30 days ago)
+        # Calculate a reasonable start date (180 days ago)
         from datetime import timedelta
-        start_date_daily = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+        start_date_daily = (datetime.now() - timedelta(days=180)).strftime('%Y%m%d')
         try:
             df_daily = self.data_collector.fetch_kline_data(
                 stock_code, period="daily", start=start_date_daily, end=end_date

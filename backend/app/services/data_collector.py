@@ -42,8 +42,10 @@ class DataCollector:
                 df = self._call_with_retry(ak.stock_zh_a_hist, symbol=code, start_date=start, end_date=end)
             elif period in ("weekly", "week"):
                 df = self._call_with_retry(ak.stock_zh_a_hist, symbol=code, adjust="qfq", period="weekly")
+                df = df[-60:]  # Return last 60 entries
             elif period in ("monthly", "month"):
                 df = self._call_with_retry(ak.stock_zh_a_hist, symbol=code, adjust="qfq", period="monthly")
+                df = df[-60:]  # Return last 60 entries
             else:
                 raise ValueError("Unsupported period: %s" % period)
         except TypeError:
@@ -53,7 +55,7 @@ class DataCollector:
         if not isinstance(df, pd.DataFrame):
             # Try to coerce
             df = pd.DataFrame(df)
-        return df[-60:] # Return last 60 entries by default
+        return df # Return last 60 entries by default
 
     def fetch_limit_up_pool(self) -> pd.DataFrame:
         """Fetch today's limit-up stock pool."""
