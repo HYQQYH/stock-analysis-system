@@ -1,9 +1,9 @@
 import axios, { AxiosError } from 'axios';
 
-// 创建 axios 实例
+// 创建 axios 实例 - AI分析需要较长时间，设置为5分钟
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
-  timeout: 30000,
+  timeout: 300000, // 5分钟 = 300秒
 });
 
 // 响应拦截器
