@@ -84,6 +84,53 @@ export const marketApi = {
       success: boolean;
       error_message: string | null;
     }>('/market/analysis', params),
+  
+  // 大盘分析历史接口
+  getMarketAnalysisHistory: (params?: { page?: number; pageSize?: number }) => 
+    get<{
+      total: number;
+      page: number;
+      page_size: number;
+      data: Array<{
+        analysis_id: string;
+        stock_code: string;
+        analysis_mode: string;
+        status: string;
+        analysis_time: string;
+        confidence_score: number | null;
+        created_at: string;
+        kline_type: string;
+      }>;
+    }>('/market/analysis/history', params),
+  
+  // 获取大盘分析详情
+  getMarketAnalysisResult: (analysisId: string) => 
+    get<{
+      analysis_id: string;
+      stock_code: string;
+      analysis_mode: string;
+      kline_type: string;
+      status: string;
+      analysis_time: string;
+      confidence_score: number | null;
+      llm_model: string | null;
+      analysis_result: string | null;
+      trading_advice: {
+        direction: string;
+        target_price?: number;
+        stop_loss?: number;
+        take_profit?: number;
+        holding_period?: number;
+        risk_level?: string;
+      } | null;
+      error_message: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(`/market/analysis/${analysisId}`),
+  
+  // 删除大盘分析记录
+  deleteMarketAnalysis: (analysisId: string) => 
+    del(`/market/analysis/${analysisId}`),
 };
 
 // 分析相关 API

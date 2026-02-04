@@ -2,9 +2,11 @@
 Market-related API Routes
 """
 import logging
+import uuid
 import akshare as ak
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
 
 from app.schemas.market import (
     MarketIndexData,
@@ -13,15 +15,18 @@ from app.schemas.market import (
     LimitUpStock,
     MarketActivity
 )
-from app.schemas.common import ApiResponse, HttpStatus
+from app.schemas.common import ApiResponse, HttpStatus, PaginatedResponse
 from app.services.indicator_calculator import IndicatorCalculator
 from app.services.ai_analyzer import analyze_market, MarketAnalysisResult
+from app.db.database import get_db
+from app.models.models import AnalysisHistory as AnalysisHistoryModel, AnalysisStatusEnum
 
 router = APIRouter(prefix="/market", tags=["Market"])
 indicator_calculator = IndicatorCalculator()
 
 
 logger = logging.getLogger(__name__)
+
 
 @router.get("/index", response_model=ApiResponse[dict])
 async def get_market_index(
@@ -315,7 +320,8 @@ async def get_limit_up_pool(
 @router.get("/analysis", response_model=ApiResponse[dict])
 async def get_market_analysis(
     kline_type: str = Query("day", description="K-line type: day/week/month"),
-    days: int = Query(30, ge=7, le=90, description="Number of days for analysis")
+    days: int = Query(30, ge=7, le=90, description="Number of days for analysis"),
+    save_result: bool = Query(True, description="Whether to save analysis result to database")
 ):
     """
     Get AI-powered market analysis (技术指标分析)
@@ -331,6 +337,7 @@ async def get_market_analysis(
     
     - **kline_type**: K-line type - day/week/month
     - **days**: Number of days for analysis (7-90)
+    - **save_result**: Whether to save the result to database for history
     """
     try:
         import pandas as pd
@@ -438,3 +445,161 @@ async def get_market_analysis(
         )
 
 
+@router.get("/analysis/history", response_model=ApiResponse[PaginatedResponse[dict]])
+async def get_market_analysis_history(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get market analysis history from database
+    
+    - **page**: Page number (starts from 1)
+    - **page_size**: Items per page (1-100)
+    """
+    try:
+        # Query only index analysis records (analysis_type = 'index')
+        query = db.query(AnalysisHistoryModel).filter(
+            AnalysisHistoryModel.analysis_type == 'index'
+        )
+        
+        # Get total count
+        total = query.count()
+        
+        # Get paginated results sorted by created_at descending
+        items = query.order_by(
+            AnalysisHistoryModel.created_at.desc()
+        ).offset((page - 1) * page_size).limit(page_size).all()
+        
+        # Convert to response format
+        history_items = []
+        for item in items:
+            history_items.append({
+                "analysis_id": item.analysis_id,
+                "stock_code": item.stock_code,
+                "analysis_mode": item.analysis_mode or "大盘技术分析",
+                "status": item.status.value if hasattr(item.status, 'value') else str(item.status),
+                "analysis_time": item.analysis_time,
+                "confidence_score": item.confidence_score,
+                "created_at": item.created_at,
+                "kline_type": item.kline_type
+            })
+        
+        paginated_response = PaginatedResponse[dict](
+            total=total,
+            page=page,
+            page_size=page_size,
+            data=history_items
+        )
+        
+        return ApiResponse(
+            code=HttpStatus.OK,
+            message="success",
+            data=paginated_response
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get market analysis history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            detail=f"获取大盘分析历史失败: {str(e)}"
+        )
+
+
+@router.get("/analysis/{analysis_id}", response_model=ApiResponse[dict])
+async def get_market_analysis_result(
+    analysis_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific market analysis result from database
+    
+    - **analysis_id**: Unique analysis ID
+    """
+    try:
+        # Check if task exists
+        task = db.query(AnalysisHistoryModel).filter(
+            AnalysisHistoryModel.analysis_id == analysis_id
+        ).first()
+        
+        if not task:
+            raise HTTPException(
+                status_code=HttpStatus.NOT_FOUND,
+                detail=f"未找到分析任务: {analysis_id}"
+            )
+        
+        # Build response
+        response_data = {
+            "analysis_id": task.analysis_id,
+            "stock_code": task.stock_code,
+            "analysis_mode": task.analysis_mode or "大盘技术分析",
+            "kline_type": task.kline_type,
+            "status": task.status.value if hasattr(task.status, 'value') else str(task.status),
+            "analysis_time": task.analysis_time,
+            "confidence_score": task.confidence_score,
+            "llm_model": task.llm_model,
+            "analysis_result": task.analysis_result,
+            "trading_advice": task.trading_advice,
+            "error_message": task.error_message,
+            "created_at": task.created_at,
+            "updated_at": task.updated_at
+        }
+        
+        return ApiResponse(
+            code=HttpStatus.OK,
+            message="success",
+            data=response_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get market analysis result: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            detail=f"获取分析结果失败: {str(e)}"
+        )
+
+
+@router.delete("/analysis/{analysis_id}", response_model=ApiResponse[dict])
+async def delete_market_analysis(
+    analysis_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a market analysis record from database
+    
+    - **analysis_id**: Unique analysis ID
+    """
+    try:
+        # Check if task exists
+        task = db.query(AnalysisHistoryModel).filter(
+            AnalysisHistoryModel.analysis_id == analysis_id,
+            AnalysisHistoryModel.analysis_type == 'index'
+        ).first()
+        
+        if not task:
+            raise HTTPException(
+                status_code=HttpStatus.NOT_FOUND,
+                detail=f"未找到分析任务: {analysis_id}"
+            )
+        
+        # Delete task
+        db.delete(task)
+        db.commit()
+        logger.info(f"[Market Analysis {analysis_id}] Analysis record deleted from database")
+        
+        return ApiResponse(
+            code=HttpStatus.OK,
+            message="分析记录已删除",
+            data={"analysis_id": analysis_id}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete market analysis: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            detail=f"删除分析记录失败: {str(e)}"
+        )

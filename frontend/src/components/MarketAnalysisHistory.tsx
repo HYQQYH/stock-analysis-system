@@ -2,41 +2,40 @@ import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, Space, Modal, Spin, Empty, Pagination, message, Tooltip } from 'antd';
 import { EyeOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import MarkdownRenderer from './MarkdownRenderer';
-import { analysisApi } from '../services/api';
+import { marketApi } from '../services/api';
 
-// API返回的历史记录类型
+// 大盘分析历史记录类型
 interface MarketAnalysisHistoryItem {
-  analysis_id: string;
-  stock_code: string;
-  analysis_mode: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'timeout';
-  analysis_time: string;
-  confidence_score: number | null;
-  created_at: string;
-}
-
-// 完整分析结果类型
-interface AnalysisDetail {
-  id: string;
   analysis_id: string;
   stock_code: string;
   analysis_mode: string;
   status: string;
   analysis_time: string;
-  result: {
-    analysis_result: string;
-    trading_advice: {
-      direction: string;
-      target_price?: number;
-      stop_loss?: number;
-      take_profit?: number;
-      holding_period?: number;
-      risk_level?: string;
-    } | null;
-    confidence_score: number | null;
-    llm_model?: string;
+  confidence_score: number | null;
+  created_at: string;
+  kline_type: string;
+}
+
+// 大盘分析详情类型
+interface MarketAnalysisDetail {
+  analysis_id: string;
+  stock_code: string;
+  analysis_mode: string;
+  kline_type: string;
+  status: string;
+  analysis_time: string;
+  confidence_score: number | null;
+  llm_model: string | null;
+  analysis_result: string | null;
+  trading_advice: {
+    direction: string;
+    target_price?: number;
+    stop_loss?: number;
+    take_profit?: number;
+    holding_period?: number;
+    risk_level?: string;
   } | null;
-  error_message?: string | null;
+  error_message: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,18 +47,16 @@ const MarketAnalysisHistory: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [currentDetail, setCurrentDetail] = useState<AnalysisDetail | null>(null);
+  const [currentDetail, setCurrentDetail] = useState<MarketAnalysisDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   // 获取大盘分析历史记录
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const response = await analysisApi.getHistory({
+      const response = await marketApi.getMarketAnalysisHistory({
         page,
         pageSize,
-        stockCode: '000001', // 上证指数代码
-        analysisType: 'index' // 大盘分析类型
       }) as {
         total: number;
         page: number;
@@ -91,7 +88,7 @@ const MarketAnalysisHistory: React.FC = () => {
     setCurrentDetail(null);
 
     try {
-      const response = await analysisApi.getAnalysisResult(analysisId) as AnalysisDetail;
+      const response = await marketApi.getMarketAnalysisResult(analysisId) as MarketAnalysisDetail;
       setCurrentDetail(response);
     } catch (err) {
       console.error('获取分析详情失败:', err);
@@ -105,7 +102,7 @@ const MarketAnalysisHistory: React.FC = () => {
   // 删除记录
   const handleDelete = async (analysisId: string) => {
     try {
-      await analysisApi.deleteAnalysis(analysisId);
+      await marketApi.deleteMarketAnalysis(analysisId);
       message.success('删除成功');
       fetchHistory();
     } catch (err) {
@@ -141,6 +138,19 @@ const MarketAnalysisHistory: React.FC = () => {
   // 表格列定义
   const columns = [
     {
+      title: 'K线类型',
+      dataIndex: 'kline_type',
+      key: 'kline_type',
+      render: (type: string) => {
+        const typeMap: Record<string, string> = {
+          'day': '日K',
+          'week': '周K',
+          'month': '月K',
+        };
+        return typeMap[type] || type;
+      },
+    },
+    {
       title: '分析时间',
       dataIndex: 'analysis_time',
       key: 'analysis_time',
@@ -154,7 +164,7 @@ const MarketAnalysisHistory: React.FC = () => {
       title: '分析类型',
       dataIndex: 'analysis_mode',
       key: 'analysis_mode',
-      render: (mode: string) => mode || '大盘分析',
+      render: (mode: string) => mode || '大盘技术分析',
     },
     {
       title: '状态',
@@ -305,69 +315,69 @@ const MarketAnalysisHistory: React.FC = () => {
                     : '--'}
                 </span>
               </div>
-              {currentDetail.result?.confidence_score && (
+              {currentDetail.confidence_score && (
                 <div>
                   <span className="text-gray-500">置信度：</span>
                   <Tag color="blue">
-                    {Math.round(currentDetail.result.confidence_score * 100)}%
+                    {Math.round(currentDetail.confidence_score * 100)}%
                   </Tag>
                 </div>
               )}
-              {currentDetail.result?.llm_model && (
+              {currentDetail.llm_model && (
                 <div>
                   <span className="text-gray-500">AI模型：</span>
-                  <span>{currentDetail.result.llm_model}</span>
+                  <span>{currentDetail.llm_model}</span>
                 </div>
               )}
             </div>
 
             {/* 交易建议 */}
-            {currentDetail.result?.trading_advice && (
+            {currentDetail.trading_advice && (
               <Card title="📈 交易建议" size="small" className="mb-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <div className="text-gray-500 text-sm">方向</div>
                     <div
                       className={`text-xl font-bold ${
-                        currentDetail.result.trading_advice.direction === '买入'
+                        currentDetail.trading_advice.direction === '买入'
                           ? 'text-red-500'
-                          : currentDetail.result.trading_advice.direction === '卖出'
+                          : currentDetail.trading_advice.direction === '卖出'
                           ? 'text-green-500'
                           : ''
                       }`}
                     >
-                      {currentDetail.result.trading_advice.direction || '--'}
+                      {currentDetail.trading_advice.direction || '--'}
                     </div>
                   </div>
-                  {currentDetail.result.trading_advice.target_price && (
+                  {currentDetail.trading_advice.target_price && (
                     <div>
                       <div className="text-gray-500 text-sm">目标价</div>
                       <div className="text-xl font-bold text-red-500">
-                        {currentDetail.result.trading_advice.target_price}
+                        {currentDetail.trading_advice.target_price}
                       </div>
                     </div>
                   )}
-                  {currentDetail.result.trading_advice.stop_loss && (
+                  {currentDetail.trading_advice.stop_loss && (
                     <div>
                       <div className="text-gray-500 text-sm">止损价</div>
                       <div className="text-xl font-bold text-green-500">
-                        {currentDetail.result.trading_advice.stop_loss}
+                        {currentDetail.trading_advice.stop_loss}
                       </div>
                     </div>
                   )}
-                  {currentDetail.result.trading_advice.risk_level && (
+                  {currentDetail.trading_advice.risk_level && (
                     <div>
                       <div className="text-gray-500 text-sm">风险等级</div>
                       <Tag
                         color={
-                          currentDetail.result.trading_advice.risk_level === '低'
+                          currentDetail.trading_advice.risk_level === '低'
                             ? 'green'
-                            : currentDetail.result.trading_advice.risk_level === '中'
+                            : currentDetail.trading_advice.risk_level === '中'
                             ? 'orange'
                             : 'red'
                         }
                       >
-                        {currentDetail.result.trading_advice.risk_level}
+                        {currentDetail.trading_advice.risk_level}
                       </Tag>
                     </div>
                   )}
@@ -376,9 +386,9 @@ const MarketAnalysisHistory: React.FC = () => {
             )}
 
             {/* 分析内容（Markdown格式） */}
-            {currentDetail.result?.analysis_result && (
+            {currentDetail.analysis_result && (
               <Card title="📋 详细分析" size="small">
-                <MarkdownRenderer content={currentDetail.result.analysis_result} />
+                <MarkdownRenderer content={currentDetail.analysis_result} />
               </Card>
             )}
 
