@@ -5,12 +5,17 @@ Implements async task execution for stock analysis with real AI analysis
 import uuid
 import hashlib
 import asyncio
+import json
 import logging
 from datetime import datetime
-from typing import Dict, Optional
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from typing import Dict, Optional, List
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from app.services.analysis_pipeline import run_stock_analysis_pipeline
+from app.db.database import get_db
+from app.models.models import AnalysisHistory as AnalysisHistoryModel, AnalysisStatusEnum
 from app.schemas.analysis import (
     AnalysisRequest,
     AnalysisCreateResponse,
@@ -31,8 +36,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
-# In-memory storage for analysis tasks (in production, use Redis or database)
-analysis_tasks: Dict[str, dict] = {}
 ANALYSIS_TIMEOUT = 300  # seconds (increased for real AI analysis)
 
 
@@ -93,14 +96,44 @@ def map_analysis_mode(api_mode: str) -> str:
     return mode_mapping.get(api_mode, "短线T+1")
 
 
-async def run_analysis_task(analysis_id: str, request: AnalysisRequest):
+def map_status_enum(db_status: AnalysisStatusEnum) -> AnalysisStatus:
+    """Map database status enum to API status enum"""
+    status_mapping = {
+        AnalysisStatusEnum.PENDING: AnalysisStatus.PENDING,
+        AnalysisStatusEnum.RUNNING: AnalysisStatus.RUNNING,
+        AnalysisStatusEnum.COMPLETED: AnalysisStatus.COMPLETED,
+        AnalysisStatusEnum.FAILED: AnalysisStatus.FAILED,
+        AnalysisStatusEnum.TIMEOUT: AnalysisStatus.TIMEOUT
+    }
+    return status_mapping.get(db_status, AnalysisStatus.PENDING)
+
+
+def map_api_status_to_enum(api_status: AnalysisStatus) -> AnalysisStatusEnum:
+    """Map API status enum to database status enum"""
+    status_mapping = {
+        AnalysisStatus.PENDING: AnalysisStatusEnum.PENDING,
+        AnalysisStatus.RUNNING: AnalysisStatusEnum.RUNNING,
+        AnalysisStatus.COMPLETED: AnalysisStatusEnum.COMPLETED,
+        AnalysisStatus.FAILED: AnalysisStatusEnum.FAILED,
+        AnalysisStatus.TIMEOUT: AnalysisStatusEnum.TIMEOUT
+    }
+    return status_mapping.get(api_status, AnalysisStatusEnum.PENDING)
+
+
+async def run_analysis_task(analysis_id: str, request: AnalysisRequest, db: Session):
     """
     Background task to run real stock analysis using AI pipeline
     """
+    db_task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
+    if not db_task:
+        logger.error(f"[Analysis {analysis_id}] Task not found in database")
+        return
+    
     try:
         # Update status to running
-        analysis_tasks[analysis_id]["status"] = AnalysisStatus.RUNNING
-        analysis_tasks[analysis_id]["updated_at"] = datetime.utcnow()
+        db_task.status = AnalysisStatusEnum.RUNNING
+        db_task.updated_at = datetime.utcnow()
+        db.commit()
         
         logger.info(f"[Analysis {analysis_id}] Starting real AI analysis for stock {request.stock_code}")
         
@@ -143,61 +176,57 @@ async def run_analysis_task(analysis_id: str, request: AnalysisRequest):
             if ai_result:
                 trading_advice = None
                 if ai_result.trading_advice:
-                    trading_advice = TradingAdvice(
-                        direction=ai_result.trading_advice.direction if hasattr(ai_result.trading_advice, 'direction') else None,
-                        target_price=ai_result.trading_advice.target_price if hasattr(ai_result.trading_advice, 'target_price') else None,
-                        stop_loss=ai_result.trading_advice.stop_loss if hasattr(ai_result.trading_advice, 'stop_loss') else None,
-                        take_profit=ai_result.trading_advice.take_profit if hasattr(ai_result.trading_advice, 'take_profit') else None,
-                        holding_period=ai_result.trading_advice.holding_period if hasattr(ai_result.trading_advice, 'holding_period') else None,
-                        risk_level=ai_result.trading_advice.risk_level if hasattr(ai_result.trading_advice, 'risk_level') else None
-                    )
+                    trading_advice_dict = {
+                        "direction": ai_result.trading_advice.direction if hasattr(ai_result.trading_advice, 'direction') else None,
+                        "target_price": ai_result.trading_advice.target_price if hasattr(ai_result.trading_advice, 'target_price') else None,
+                        "stop_loss": ai_result.trading_advice.stop_loss if hasattr(ai_result.trading_advice, 'stop_loss') else None,
+                        "take_profit": ai_result.trading_advice.take_profit if hasattr(ai_result.trading_advice, 'take_profit') else None,
+                        "holding_period": ai_result.trading_advice.holding_period if hasattr(ai_result.trading_advice, 'holding_period') else None,
+                        "risk_level": ai_result.trading_advice.risk_level if hasattr(ai_result.trading_advice, 'risk_level') else None
+                    }
                 
-                api_result = AnalysisResult(
-                    analysis_result=ai_result.analysis_content or "",
-                    trading_advice=trading_advice,
-                    confidence_score=ai_result.confidence_score,
-                    llm_model=ai_result.llm_provider or "Unknown",
-                    prompt_version="v1.1",
-                    input_hash=input_hash
-                )
+                db_task.trading_advice = trading_advice_dict
+                db_task.confidence_score = ai_result.confidence_score
+                db_task.analysis_result = ai_result.analysis_content or ""
+                db_task.llm_model = ai_result.llm_provider or "Unknown"
+                db_task.prompt_version = "v1.1"
+                db_task.input_hash = input_hash
             else:
                 # Fallback if no AI result
-                api_result = AnalysisResult(
-                    analysis_result="AI analysis completed but no detailed result available",
-                    confidence_score=0.5,
-                    llm_model="Unknown",
-                    prompt_version="v1.1",
-                    input_hash=input_hash
-                )
+                db_task.analysis_result = "AI analysis completed but no detailed result available"
+                db_task.confidence_score = 0.5
+                db_task.llm_model = "Unknown"
+                db_task.prompt_version = "v1.1"
+                db_task.input_hash = input_hash
         
         # Update task with results
-        analysis_tasks[analysis_id]["status"] = AnalysisStatus.COMPLETED
-        analysis_tasks[analysis_id]["analysis_time"] = datetime.utcnow()
-        analysis_tasks[analysis_id]["input_data"] = input_data
-        analysis_tasks[analysis_id]["result"] = api_result
-        analysis_tasks[analysis_id]["updated_at"] = datetime.utcnow()
-        analysis_tasks[analysis_id]["pipeline_log"] = pipeline_result.execution_log
-        analysis_tasks[analysis_id]["cache_keys"] = pipeline_result.result.data_cache_keys if pipeline_result.result else []
+        db_task.status = AnalysisStatusEnum.COMPLETED
+        db_task.analysis_time = datetime.utcnow()
+        db_task.input_data = input_data
+        db_task.updated_at = datetime.utcnow()
+        db.commit()
         
         logger.info(f"[Analysis {analysis_id}] Analysis completed successfully")
         
     except asyncio.CancelledError:
         # Task was cancelled
-        analysis_tasks[analysis_id]["status"] = AnalysisStatus.FAILED
-        analysis_tasks[analysis_id]["error_message"] = "Analysis task was cancelled"
-        analysis_tasks[analysis_id]["updated_at"] = datetime.utcnow()
+        db_task.status = AnalysisStatusEnum.FAILED
+        db_task.error_message = "Analysis task was cancelled"
+        db_task.updated_at = datetime.utcnow()
+        db.commit()
         logger.warning(f"[Analysis {analysis_id}] Analysis task was cancelled")
     except Exception as e:
         # Task failed
         error_msg = str(e)
         logger.error(f"[Analysis {analysis_id}] Analysis failed: {error_msg}", exc_info=True)
-        analysis_tasks[analysis_id]["status"] = AnalysisStatus.FAILED
-        analysis_tasks[analysis_id]["error_message"] = error_msg
-        analysis_tasks[analysis_id]["updated_at"] = datetime.utcnow()
+        db_task.status = AnalysisStatusEnum.FAILED
+        db_task.error_message = error_msg
+        db_task.updated_at = datetime.utcnow()
+        db.commit()
 
 
 @router.post("", response_model=ApiResponse[AnalysisCreateResponse])
-async def create_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks):
+async def create_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Create a stock analysis task (executes asynchronously)
     
@@ -223,25 +252,33 @@ async def create_analysis(request: AnalysisRequest, background_tasks: Background
         analysis_id = str(uuid.uuid4())
         created_at = datetime.utcnow()
         
-        # Create task entry
-        task = {
-            "analysis_id": analysis_id,
-            "stock_code": request.stock_code,
-            "analysis_mode": request.analysis_mode.value,
-            "status": AnalysisStatus.PENDING,
-            "analysis_time": None,
-            "input_data": None,
-            "result": None,
-            "error_message": None,
-            "created_at": created_at,
-            "updated_at": created_at,
-            "request": request
-        }
+        # Create database record for analysis history
+        db_task = AnalysisHistoryModel(
+            analysis_id=analysis_id,
+            stock_code=request.stock_code,
+            analysis_type="stock",
+            analysis_mode=request.analysis_mode.value,
+            analysis_time=created_at,
+            kline_type=request.kline_type,
+            input_data={
+                "stock_code": request.stock_code,
+                "analysis_mode": request.analysis_mode.value,
+                "kline_type": request.kline_type,
+                "sector_names": request.sector_names,
+                "include_news": request.include_news
+            },
+            status=AnalysisStatusEnum.PENDING,
+            created_at=created_at,
+            updated_at=created_at
+        )
+        db.add(db_task)
+        db.commit()
+        db.refresh(db_task)
         
-        analysis_tasks[analysis_id] = task
+        logger.info(f"[Analysis {analysis_id}] Analysis task created for stock {request.stock_code}")
         
         # Add background task to run real AI analysis
-        background_tasks.add_task(run_analysis_task, analysis_id, request)
+        background_tasks.add_task(run_analysis_task, analysis_id, request, db)
         
         # Return immediate response
         response = AnalysisCreateResponse(
@@ -249,8 +286,6 @@ async def create_analysis(request: AnalysisRequest, background_tasks: Background
             status=AnalysisStatus.PENDING,
             created_at=created_at
         )
-        
-        logger.info(f"[Analysis {analysis_id}] Analysis task created for stock {request.stock_code}")
         
         return ApiResponse(
             code=HttpStatus.OK,
@@ -273,10 +308,11 @@ async def get_analysis_history(
     stock_code: Optional[str] = Query(None, description="Filter by stock code"),
     status_filter: Optional[AnalysisStatus] = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page")
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db)
 ):
     """
-    Get analysis history
+    Get analysis history from database
     
     - **stock_code**: Optional filter by stock code
     - **status_filter**: Optional filter by status
@@ -284,40 +320,34 @@ async def get_analysis_history(
     - **page_size**: Items per page (1-100)
     """
     try:
-        # Filter tasks
-        filtered_tasks = list(analysis_tasks.values())
+        # Build query
+        query = db.query(AnalysisHistoryModel)
         
         if stock_code:
-            filtered_tasks = [t for t in filtered_tasks if t["stock_code"] == stock_code]
+            query = query.filter(AnalysisHistoryModel.stock_code == stock_code)
         
         if status_filter:
-            filtered_tasks = [t for t in filtered_tasks if t["status"] == status_filter]
+            db_status = map_api_status_to_enum(status_filter)
+            query = query.filter(AnalysisHistoryModel.status == db_status)
         
-        # Sort by created_at descending
-        filtered_tasks.sort(key=lambda x: x["created_at"], reverse=True)
+        # Get total count
+        total = query.count()
         
-        # Pagination
-        total = len(filtered_tasks)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        page_items = filtered_tasks[start_idx:end_idx]
+        # Get paginated results sorted by created_at descending
+        items = query.order_by(desc(AnalysisHistoryModel.created_at)).offset((page - 1) * page_size).limit(page_size).all()
         
         # Convert to response format
         history_items = []
-        for item in page_items:
-            confidence_score = None
-            if item["result"]:
-                confidence_score = item["result"].confidence_score if hasattr(item["result"], 'confidence_score') else None
-            
+        for item in items:
             history_items.append(
                 AnalysisHistoryItem(
-                    analysis_id=item["analysis_id"],
-                    stock_code=item["stock_code"],
-                    analysis_mode=item["analysis_mode"],
-                    status=item["status"],
-                    analysis_time=item["analysis_time"],
-                    confidence_score=confidence_score,
-                    created_at=item["created_at"]
+                    analysis_id=item.analysis_id,
+                    stock_code=item.stock_code,
+                    analysis_mode=item.analysis_mode or "",
+                    status=map_status_enum(item.status) if item.status else AnalysisStatus.PENDING,
+                    analysis_time=item.analysis_time,
+                    confidence_score=item.confidence_score,
+                    created_at=item.created_at
                 )
             )
         
@@ -343,9 +373,9 @@ async def get_analysis_history(
 
 
 @router.get("/{analysis_id}", response_model=ApiResponse[AnalysisDetail])
-async def get_analysis_result(analysis_id: str):
+async def get_analysis_result(analysis_id: str, db: Session = Depends(get_db)):
     """
-    Get analysis result or task status
+    Get analysis result or task status from database
     
     Supports polling to check the status and retrieve results.
     Returns the complete AI analysis report when completed.
@@ -353,37 +383,62 @@ async def get_analysis_result(analysis_id: str):
     - **analysis_id**: Unique analysis ID
     """
     try:
-        # Check if task exists
-        if analysis_id not in analysis_tasks:
+        # Check if task exists in database
+        task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
+        
+        if not task:
             raise HTTPException(
                 status_code=HttpStatus.NOT_FOUND,
                 detail=f"未找到分析任务: {analysis_id}"
             )
         
-        task = analysis_tasks[analysis_id]
-        
         # Check for timeout
-        if task["status"] in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]:
-            elapsed_seconds = (datetime.utcnow() - task["created_at"]).total_seconds()
+        if task.status == AnalysisStatusEnum.PENDING or task.status == AnalysisStatusEnum.RUNNING:
+            elapsed_seconds = (datetime.utcnow() - task.created_at).total_seconds()
             if elapsed_seconds > ANALYSIS_TIMEOUT:
-                # Task timed out
-                task["status"] = AnalysisStatus.TIMEOUT
-                task["error_message"] = f"分析超时，已超过 {ANALYSIS_TIMEOUT} 秒"
-                task["updated_at"] = datetime.utcnow()
+                task.status = AnalysisStatusEnum.TIMEOUT
+                task.error_message = f"分析超时，已超过 {ANALYSIS_TIMEOUT} 秒"
+                task.updated_at = datetime.utcnow()
+                db.commit()
                 logger.warning(f"[Analysis {analysis_id}] Analysis timed out")
+        
+        # Build trading advice from stored dict
+        trading_advice = None
+        if task.trading_advice:
+            ta_dict = task.trading_advice
+            trading_advice = TradingAdvice(
+                direction=ta_dict.get("direction") if isinstance(ta_dict, dict) else None,
+                target_price=ta_dict.get("target_price") if isinstance(ta_dict, dict) else None,
+                stop_loss=ta_dict.get("stop_loss") if isinstance(ta_dict, dict) else None,
+                take_profit=ta_dict.get("take_profit") if isinstance(ta_dict, dict) else None,
+                holding_period=ta_dict.get("holding_period") if isinstance(ta_dict, dict) else None,
+                risk_level=ta_dict.get("risk_level") if isinstance(ta_dict, dict) else None
+            )
+        
+        # Build result object
+        result = None
+        if task.analysis_result or task.confidence_score:
+            result = AnalysisResult(
+                analysis_result=task.analysis_result,
+                trading_advice=trading_advice,
+                confidence_score=task.confidence_score,
+                llm_model=task.llm_model,
+                prompt_version=task.prompt_version,
+                input_hash=task.input_hash
+            )
         
         # Build response
         detail = AnalysisDetail(
-            analysis_id=task["analysis_id"],
-            stock_code=task["stock_code"],
-            analysis_mode=task["analysis_mode"],
-            status=task["status"],
-            analysis_time=task["analysis_time"],
-            input_data=task.get("input_data"),
-            result=task["result"],
-            error_message=task["error_message"],
-            created_at=task["created_at"],
-            updated_at=task["updated_at"]
+            analysis_id=task.analysis_id,
+            stock_code=task.stock_code,
+            analysis_mode=task.analysis_mode or "",
+            status=map_status_enum(task.status) if task.status else AnalysisStatus.PENDING,
+            analysis_time=task.analysis_time,
+            input_data=task.input_data,
+            result=result,
+            error_message=task.error_message,
+            created_at=task.created_at,
+            updated_at=task.updated_at
         )
         
         return ApiResponse(
@@ -403,23 +458,26 @@ async def get_analysis_result(analysis_id: str):
 
 
 @router.delete("/{analysis_id}", response_model=ApiResponse[dict])
-async def delete_analysis(analysis_id: str):
+async def delete_analysis(analysis_id: str, db: Session = Depends(get_db)):
     """
-    Delete an analysis record
+    Delete an analysis record from database
     
     - **analysis_id**: Unique analysis ID
     """
     try:
         # Check if task exists
-        if analysis_id not in analysis_tasks:
+        task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
+        
+        if not task:
             raise HTTPException(
                 status_code=HttpStatus.NOT_FOUND,
                 detail=f"未找到分析任务: {analysis_id}"
             )
         
         # Delete task
-        del analysis_tasks[analysis_id]
-        logger.info(f"[Analysis {analysis_id}] Analysis record deleted")
+        db.delete(task)
+        db.commit()
+        logger.info(f"[Analysis {analysis_id}] Analysis record deleted from database")
         
         return ApiResponse(
             code=HttpStatus.OK,
@@ -438,9 +496,9 @@ async def delete_analysis(analysis_id: str):
 
 
 @router.get("/{analysis_id}/pipeline-log", response_model=ApiResponse[dict])
-async def get_analysis_pipeline_log(analysis_id: str):
+async def get_analysis_pipeline_log(analysis_id: str, db: Session = Depends(get_db)):
     """
-    Get the detailed pipeline execution log for an analysis
+    Get the detailed pipeline execution log for an analysis from database
     
     This provides step-by-step execution details including:
     - Data collection steps
@@ -453,14 +511,17 @@ async def get_analysis_pipeline_log(analysis_id: str):
     """
     try:
         # Check if task exists
-        if analysis_id not in analysis_tasks:
+        task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
+        
+        if not task:
             raise HTTPException(
                 status_code=HttpStatus.NOT_FOUND,
                 detail=f"未找到分析任务: {analysis_id}"
             )
         
-        task = analysis_tasks[analysis_id]
-        pipeline_log = task.get("pipeline_log", {})
+        # Get pipeline log from input_data if available
+        input_data = task.input_data or {}
+        pipeline_log = input_data.get("pipeline_log", {}) if isinstance(input_data, dict) else {}
         
         return ApiResponse(
             code=HttpStatus.OK,
@@ -468,7 +529,7 @@ async def get_analysis_pipeline_log(analysis_id: str):
             data={
                 "analysis_id": analysis_id,
                 "pipeline_log": pipeline_log,
-                "cache_keys": task.get("cache_keys", [])
+                "cache_keys": input_data.get("cache_keys", []) if isinstance(input_data, dict) else []
             }
         )
         

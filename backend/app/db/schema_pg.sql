@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     llm_model VARCHAR(50),
     prompt_version VARCHAR(10),
     input_hash VARCHAR(64),
-    status VARCHAR(20) DEFAULT 'pending',  -- 'pending', 'completed', 'failed', 'timeout'
+    status VARCHAR(20) DEFAULT 'pending',  -- 'pending', 'running', 'completed', 'failed', 'timeout'
     error_message TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

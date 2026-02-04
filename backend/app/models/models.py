@@ -30,6 +30,7 @@ class AnalysisTypeEnum(str, enum.Enum):
 class AnalysisStatusEnum(str, enum.Enum):
     """Analysis status enumeration"""
     PENDING = "pending"
+    RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     TIMEOUT = "timeout"
