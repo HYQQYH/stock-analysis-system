@@ -42,9 +42,9 @@ export function MarketDashboard({
     return '#6b7280';
   };
 
-  const change = indexData?.change ?? 0;
-  const changePct = indexData?.changePct ?? 0;
-  const volume = indexData?.volume ?? 0;
+  const change = Number(indexData?.change ?? 0);
+  const changePct = Number(indexData?.changePct ?? 0);
+  const volume = Number(indexData?.volume ?? 0);
 
   return (
     <div className="space-y-4">
@@ -54,15 +54,13 @@ export function MarketDashboard({
           <Card size="small" className="shadow-sm">
             <Statistic
               title="上证指数"
-              value={indexData?.close || 0}
+              value={Number(indexData?.close ?? 0)}
               precision={2}
               valueStyle={{ color: getChangeColor(change) }}
               suffix={
                 <span className="text-sm ml-2">
-                  ({change > 0 ? '+' : ''}
-                  {change.toFixed(2)}
-                  , {changePct > 0 ? '+' : ''}
-                  {changePct.toFixed(2)}%)
+                  ({change > 0 ? '+' : ''}{change.toFixed(2)}
+                  , {changePct > 0 ? '+' : ''}{changePct.toFixed(2)}%)
                 </span>
               }
             />
@@ -77,13 +75,13 @@ export function MarketDashboard({
             <div className="text-gray-500 text-sm mb-1">市场情绪</div>
             {sentimentData ? (
               <>
-                <div className="text-2xl font-bold" style={{ color: sentimentData.sentimentScore > 50 ? '#ef4444' : '#22c55e' }}>
-                  {sentimentData.sentimentScore.toFixed(0)}
+                <div className="text-2xl font-bold" style={{ color: (sentimentData.sentimentScore ?? 0) > 50 ? '#ef4444' : '#22c55e' }}>
+                  {Number(sentimentData.sentimentScore ?? 0).toFixed(0)}
                 </div>
                 <Progress
-                  percent={sentimentData.sentimentScore}
+                  percent={sentimentData.sentimentScore ?? 0}
                   showInfo={false}
-                  strokeColor={sentimentData.sentimentScore > 50 ? '#ef4444' : '#22c55e'}
+                  strokeColor={(sentimentData.sentimentScore ?? 0) > 50 ? '#ef4444' : '#22c55e'}
                   size="small"
                 />
               </>
@@ -98,19 +96,19 @@ export function MarketDashboard({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <div className="text-gray-500 text-xs">上涨家数</div>
-                <div className="text-red-500 font-bold">{sentimentData?.riseCount || 0}</div>
+                <div className="text-red-500 font-bold">{sentimentData?.riseCount ?? 0}</div>
               </div>
               <div>
                 <div className="text-gray-500 text-xs">下跌家数</div>
-                <div className="text-green-500 font-bold">{sentimentData?.fallCount || 0}</div>
+                <div className="text-green-500 font-bold">{sentimentData?.fallCount ?? 0}</div>
               </div>
               <div>
                 <div className="text-gray-500 text-xs">涨停</div>
-                <div className="text-red-500 font-bold">{sentimentData?.limitUpCount || 0}</div>
+                <div className="text-red-500 font-bold">{sentimentData?.limitUpCount ?? 0}</div>
               </div>
               <div>
                 <div className="text-gray-500 text-xs">跌停</div>
-                <div className="text-green-500 font-bold">{sentimentData?.limitDownCount || 0}</div>
+                <div className="text-green-500 font-bold">{sentimentData?.limitDownCount ?? 0}</div>
               </div>
             </div>
           </Card>
@@ -120,8 +118,8 @@ export function MarketDashboard({
           <Card size="small" className="shadow-sm">
             <div className="text-gray-500 text-sm mb-1">多空比例</div>
             {sentimentData ? (
-            <div className="text-2xl font-bold">
-                {sentimentData.bullBearRatio != null ? sentimentData.bullBearRatio.toFixed(2) : '--'}
+              <div className="text-2xl font-bold">
+                {Number(sentimentData.bullBearRatio ?? 0).toFixed(2)}
               </div>
             ) : (
               <div className="text-gray-400">--</div>
