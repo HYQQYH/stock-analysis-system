@@ -227,7 +227,7 @@ class AIAnalyzer:
         
         for attempt in range(self.max_retries):
             try:
-                response = self.llm.invoke(messages, use_fallback=True)
+                response = self.llm.invoke(messages, use_fallback=False)
                 
                 if response.success:
                     return response

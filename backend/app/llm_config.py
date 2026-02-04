@@ -24,8 +24,12 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from abc import ABC, abstractmethod
 
+import logging
 import httpx
 from app.config import settings
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(str, Enum):
