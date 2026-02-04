@@ -1,6 +1,7 @@
 """
 Market-related API Routes
 """
+import logging
 import akshare as ak
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timedelta
@@ -18,6 +19,8 @@ from app.services.indicator_calculator import IndicatorCalculator
 router = APIRouter(prefix="/market", tags=["Market"])
 indicator_calculator = IndicatorCalculator()
 
+
+logger = logging.getLogger(__name__)
 
 @router.get("/index", response_model=ApiResponse[dict])
 async def get_market_index(
@@ -52,6 +55,8 @@ async def get_market_index(
         )
         df['date'] = pd.to_datetime(df['date'])
         df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+        logger.info(f"Fetched {len(df)} rows for Shanghai Composite Index from {start_date} to {end_date}")
+        logger.info(df.head())
         
         if df.empty:
             return ApiResponse(
@@ -74,8 +79,8 @@ async def get_market_index(
             )
             index_data.append(index_point)
         
-        # Sort by date descending
-        index_data.sort(key=lambda x: x.trade_date, reverse=True)
+        # Sort by date ascending (oldest first, newest last for K-line chart)
+        index_data.sort(key=lambda x: x.trade_date, reverse=False)
         
         return ApiResponse(
             code=HttpStatus.OK,
@@ -111,6 +116,8 @@ async def get_market_sentiment(
         
         # Fetch market activity data
         df = ak.stock_market_activity_legu()
+        logger.info(f"Fetched market activity data for sentiment calculation")
+        logger.info(df.head())
         
         if df.empty:
             return ApiResponse(
@@ -170,6 +177,8 @@ async def get_market_fund_flow(
     try:
         # Fetch fund flow data
         df = ak.stock_market_fund_flow()
+        logger.info(f"Fetched market fund flow data")
+        logger.info(df.head())  
         
         if df.empty:
             return ApiResponse(
@@ -244,6 +253,8 @@ async def get_limit_up_pool(
         
         # Fetch limit-up stock pool
         df = ak.stock_zt_pool_em(date=date)
+        logger.info(f"Fetched limit-up stock pool for date {date}")
+        logger.info(df.head())
         
         if df.empty:
             return ApiResponse(

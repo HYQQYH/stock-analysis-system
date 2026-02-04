@@ -140,9 +140,9 @@ function MarketAnalysis() {
         }));
         setIndexKline(klineData);
 
-        // 计算大盘指数数据（最新一天）
-        const latest = response.data[0];
-        const previous = response.data[1] || latest;
+        // 计算大盘指数数据（最新一天，数据已按日期升序排列，latest在最后）
+        const latest = response.data[response.data.length - 1];
+        const previous = response.data[response.data.length - 2] || latest;
         const change = latest.close_price - previous.close_price;
         const changePct = previous.close_price > 0 ? (change / previous.close_price) * 100 : 0;
 
