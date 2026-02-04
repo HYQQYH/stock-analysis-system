@@ -11,10 +11,12 @@ from app.schemas.market import (
     MarketSentiment,
     FundFlowData,
     LimitUpStock,
-    MarketActivity
+    MarketActivity,
+    MarketAnalysisResult
 )
 from app.schemas.common import ApiResponse, HttpStatus
 from app.services.indicator_calculator import IndicatorCalculator
+from app.services.ai_analyzer import analyze_market, MarketAnalysisResult as AIMarketAnalysisResult
 
 router = APIRouter(prefix="/market", tags=["Market"])
 indicator_calculator = IndicatorCalculator()
@@ -308,6 +310,132 @@ async def get_limit_up_pool(
         raise HTTPException(
             status_code=HttpStatus.INTERNAL_SERVER_ERROR,
             detail=f"获取涨停股池失败: {str(e)}"
+        )
+
+
+@router.get("/analysis", response_model=ApiResponse[dict])
+async def get_market_analysis(
+    kline_type: str = Query("day", description="K-line type: day/week/month"),
+    days: int = Query(30, ge=7, le=90, description="Number of days for analysis")
+):
+    """
+    Get AI-powered market analysis (技术指标分析)
+    
+    This endpoint analyzes the Shanghai Composite Index using AI:
+    - Technical indicators (MACD, KDJ, RSI, Moving Averages)
+    - Trend analysis (short/medium/long term)
+    - Support/Resistance levels
+    - Market sentiment assessment
+    - Investment recommendations
+    
+    Returns analysis_content in markdown format for elegant display.
+    
+    - **kline_type**: K-line type - day/week/month
+    - **days**: Number of days for analysis (7-90)
+    """
+    try:
+        import pandas as pd
+        
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Fetch index K-line data
+        df = ak.stock_zh_index_daily(symbol="sh000001")
+        if df is None or df.empty:
+            return ApiResponse(
+                code=HttpStatus.OK,
+                message="未找到大盘数据",
+                data=None
+            )
+        
+        # Normalize and filter data
+        df['date'] = pd.to_datetime(df['date'])
+        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+        df = df.sort_values('date')
+        
+        if df.empty:
+            return ApiResponse(
+                code=HttpStatus.OK,
+                message="指定时间范围内无数据",
+                data=None
+            )
+        
+        # Calculate technical indicators
+        try:
+            indicators = indicator_calculator.calculate_all_indicators(df)
+        except Exception as e:
+            logger.warning(f"Failed to calculate indicators: {e}")
+            indicators = None
+        
+        # Fetch additional market data for AI analysis
+        fund_flow_data = ""
+        limit_up_count = 0
+        limit_down_count = 0
+        
+        try:
+            # Get fund flow info
+            ff_df = ak.stock_market_fund_flow()
+            if ff_df is not None and not ff_df.empty:
+                latest_ff = ff_df.iloc[0]
+                main_inflow = latest_ff.get('主力净流入-净额', 0)
+                fund_flow_data = f"主力净流入: {main_inflow}亿" if main_inflow else ""
+        except Exception as e:
+            logger.warning(f"Failed to fetch fund flow: {e}")
+        
+        try:
+            # Get limit-up/down counts
+            activity_df = ak.stock_market_activity_legu()
+            if activity_df is not None and not activity_df.empty:
+                activity_dict = activity_df.set_index('item')['value'].to_dict()
+                limit_up_count = int(activity_dict.get('涨停', 0))
+                limit_down_count = int(activity_dict.get('跌停', 0))
+        except Exception as e:
+            logger.warning(f"Failed to fetch market activity: {e}")
+        
+        # Run AI market analysis
+        logger.info("Starting AI market analysis...")
+        ai_result = analyze_market(
+            index_code="000001",
+            index_name="上证指数",
+            kline_data=df,
+            indicators_data=indicators,
+            fund_flow_data=fund_flow_data,
+            limit_up_count=limit_up_count,
+            limit_down_count=limit_down_count,
+            days=days
+        )
+        
+        # Build response data
+        response_data = {
+            "index_code": "000001",
+            "index_name": "上证指数",
+            "kline_type": kline_type,
+            "days": days,
+            "analysis_time": ai_result.analysis_time,
+            "trend": ai_result.trend,
+            "support_levels": ai_result.support_levels,
+            "resistance_levels": ai_result.resistance_levels,
+            "sentiment_score": ai_result.sentiment_score,
+            "confidence_score": ai_result.confidence_score,
+            "llm_provider": ai_result.llm_provider,
+            "llm_model": ai_result.llm_model,
+            "token_usage": ai_result.token_usage,
+            "analysis_content": ai_result.analysis_content,
+            "success": ai_result.success,
+            "error_message": ai_result.error_message
+        }
+        
+        return ApiResponse(
+            code=HttpStatus.OK,
+            message="success",
+            data=response_data)
+        
+    except Exception as e:
+        logger.error(f"Market analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HttpStatus.INTERNAL_SERVER_ERROR,
+            detail=f"大盘分析失败: {str(e)}"
         )
 
 

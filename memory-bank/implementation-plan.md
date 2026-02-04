@@ -402,6 +402,22 @@
   - 验证 API 性能（响应时间 < 1 秒）
 
 #### 步骤 8.4：创建分析历史记录 API ✅ 已完成
+#### 步骤 8.5：创建大盘AI分析接口 ✅ 已完成 (2026-02-04)
+- **任务**: 在 `backend/app/api/market.py` 中添加大盘AI分析接口
+  - 实现接口: GET /api/v1/market/analysis - 获取上证指数AI技术分析
+    - 支持参数: type (day/week/month), days (分析周期天数)
+    - 调用 ai_analyzer.analyze_market() 生成技术分析
+    - 返回结构化分析结果（趋势、支撑位、压力位、情绪分数等）
+    - 返回Markdown格式的详细分析内容
+- **验证方法**:
+  - 调用 GET /api/v1/market/analysis?type=day&days=30
+  - 验证返回包含 analysis_content (Markdown格式技术分析)
+  - 验证返回包含 support_levels, resistance_levels, trend 等字段
+- **创建文件/更新**:
+  - `backend/app/api/market.py` - 添加 analyze_market 路由
+  - `backend/app/api/analysis.py` - 添加 analyze_market 方法
+  - `backend/app/services/ai_analyzer.py` - 添加 analyze_market 方法实现
+  - `frontend/src/components/MarkdownRenderer.tsx` - Markdown渲染组件
 - **任务**: 在 `backend/app/api/` 中创建 `analysis.py` 路由文件
  - 实现接口: POST /api/v1/analysis - 创建分析任务（提交后异步执行）
    - 行为说明：该接口应立即返回任务 ID（`analysis_id`）和初始状态（`pending`），真实分析在后台异步执行以避免阻塞请求。

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message } from 'antd';
-import { KLineChart, IndicatorCard, MarketDashboard } from '../components';
+import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message, Button } from 'antd';
+import { KLineChart, IndicatorCard, MarketDashboard, TechnicalAnalysisCard } from '../components';
 import { useMarketStore, useLoadingStore } from '../store';
 import { marketApi } from '../services/api';
 
@@ -78,13 +78,39 @@ interface LimitUpData {
   }>;
 }
 
+// 大盘AI分析结果类型
+interface MarketAnalysisData {
+  index_code: string;
+  index_name: string;
+  kline_type: string;
+  days: number;
+  analysis_time: string;
+  trend: string;
+  support_levels: number[];
+  resistance_levels: number[];
+  sentiment_score: number;
+  confidence_score: number;
+  llm_provider: string;
+  llm_model: string;
+  token_usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  analysis_content: string;
+  success: boolean;
+  error_message: string | null;
+}
+
 function MarketAnalysis() {
   const { indexKline, setIndexKline } = useMarketStore();
   const { marketLoading, setMarketLoading } = useLoadingStore();
 
   const [klineType, setKlineType] = useState<KlineType>('day');
+  const [analysisDays, setAnalysisDays] = useState<number>(30);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState<boolean>(false);
 
   const [marketData, setMarketData] = useState<{
     indexData?: {
@@ -115,6 +141,9 @@ function MarketAnalysis() {
     }>;
   }>({});
 
+  // AI分析结果状态
+  const [analysisResult, setAnalysisResult] = useState<MarketAnalysisData | null>(null);
+
   // 获取大盘K线数据
   const fetchIndexKline = async () => {
     setMarketLoading(true);
@@ -136,7 +165,7 @@ function MarketAnalysis() {
           low: item.low_price,
           close: item.close_price,
           volume: item.volume,
-          amount: item.amount ?? undefined,
+          amount: item.amount,
         }));
         setIndexKline(klineData);
 
@@ -233,6 +262,36 @@ function MarketAnalysis() {
     }
   };
 
+  // 获取AI市场分析结果
+  const fetchMarketAnalysis = async () => {
+    setAnalysisLoading(true);
+    setError(null);
+    try {
+      const response = await marketApi.getMarketAnalysis({
+        type: klineType,
+        days: analysisDays
+      }) as unknown as MarketAnalysisData;
+      
+      if (response && response.success) {
+        setAnalysisResult(response);
+      } else {
+        message.warning(response.error_message || 'AI分析暂时不可用');
+        setAnalysisResult(null);
+      }
+    } catch (err) {
+      console.error('获取AI分析失败:', err);
+      message.error('获取AI分析失败');
+      setAnalysisResult(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  // 执行AI分析
+  const handleAnalyze = () => {
+    fetchMarketAnalysis();
+  };
+
   useEffect(() => {
     fetchMarketData();
     fetchIndexKline();
@@ -315,11 +374,55 @@ function MarketAnalysis() {
         )}
       </Card>
 
-      {/* 技术指标 */}
+      {/* 技术指标 - AI分析结果 */}
       <Card title="技术指标分析" className="mb-6">
-        <div className="text-center py-10 text-gray-400">
-          技术指标分析功能开发中
+        {/* 分析控制栏 */}
+        <div className="flex flex-wrap gap-4 items-center mb-4">
+          <span className="text-gray-500">分析周期：</span>
+          <Select
+            value={analysisDays}
+            onChange={setAnalysisDays}
+            style={{ width: 120 }}
+            options={[
+              { value: 7, label: '7天' },
+              { value: 15, label: '15天' },
+              { value: 30, label: '30天' },
+              { value: 60, label: '60天' },
+              { value: 90, label: '90天' },
+            ]}
+          />
+          <Button 
+            type="primary" 
+            onClick={handleAnalyze}
+            loading={analysisLoading}
+            icon={<span className="mr-1">📊</span>}
+          >
+            {analysisLoading ? 'AI分析中...' : '开始AI分析'}
+          </Button>
         </div>
+        
+        {/* AI分析结果展示 */}
+        {analysisResult ? (
+          <TechnicalAnalysisCard
+            analysisContent={analysisResult.analysis_content}
+            trend={analysisResult.trend}
+            supportLevels={analysisResult.support_levels}
+            resistanceLevels={analysisResult.resistance_levels}
+            sentimentScore={analysisResult.sentiment_score}
+            confidenceScore={analysisResult.confidence_score}
+            loading={analysisLoading}
+            analysisTime={analysisResult.analysis_time}
+          />
+        ) : (
+          <div className="text-center py-10">
+            <div className="text-gray-400 mb-4">
+              点击"开始AI分析"按钮，获取上证指数的技术分析报告
+            </div>
+            <Button type="default" onClick={handleAnalyze} loading={analysisLoading}>
+              开始AI分析
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* 资金流向 */}

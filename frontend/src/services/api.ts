@@ -59,6 +59,31 @@ export const marketApi = {
   
   getLimitUp: (date?: string) => 
     get<Array<{ code: string; name: string; changePct: number; price: number; amount: number; turnoverRate: number; continuousLimit: number; industry: string }>>('/market/limit-up', { date }),
+  
+  // 大盘AI分析接口
+  getMarketAnalysis: (params: { type: string; days?: number }) => 
+    get<{
+      index_code: string;
+      index_name: string;
+      kline_type: string;
+      days: number;
+      analysis_time: string;
+      trend: string;
+      support_levels: number[];
+      resistance_levels: number[];
+      sentiment_score: number;
+      confidence_score: number;
+      llm_provider: string;
+      llm_model: string;
+      token_usage: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+      };
+      analysis_content: string;
+      success: boolean;
+      error_message: string | null;
+    }>('/market/analysis', params),
 };
 
 // 分析相关 API
