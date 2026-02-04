@@ -268,7 +268,7 @@ function MarketAnalysis() {
     setError(null);
     try {
       const response = await marketApi.getMarketAnalysis({
-        type: klineType,
+        kline_type: klineType,
         days: analysisDays
       }) as unknown as MarketAnalysisData;
       

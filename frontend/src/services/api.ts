@@ -61,7 +61,7 @@ export const marketApi = {
     get<Array<{ code: string; name: string; changePct: number; price: number; amount: number; turnoverRate: number; continuousLimit: number; industry: string }>>('/market/limit-up', { date }),
   
   // 大盘AI分析接口
-  getMarketAnalysis: (params: { type: string; days?: number }) => 
+  getMarketAnalysis: (params: { kline_type: string; days?: number }) => 
     get<{
       index_code: string;
       index_name: string;

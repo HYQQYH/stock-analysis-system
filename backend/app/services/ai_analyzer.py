@@ -643,6 +643,8 @@ class AIAnalyzer:
             
             # Parse response
             analysis_content = response.content
+            logger.info("Market Analysis LLM Response:")
+            logger.info(analysis_content)
             
             # Try to extract structured data
             json_data = self._extract_json_from_response(analysis_content)

@@ -608,12 +608,12 @@ class LLMManager:
         LLMProvider.OLLAMA: "llama2"
     }
     
-    # Fallback order when primary provider fails
+    # Fallback order when primary provider fails - MiniMax first!
     FALLBACK_ORDER = [
+        LLMProvider.MINIMAX,
         LLMProvider.OPENAI,
         LLMProvider.DASHSCOPE,
         LLMProvider.ZHIPU,
-        LLMProvider.MINIMAX,
         LLMProvider.OLLAMA
     ]
     
