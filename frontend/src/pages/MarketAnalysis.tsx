@@ -270,12 +270,14 @@ function MarketAnalysis() {
       const response = await marketApi.getMarketAnalysis({
         kline_type: klineType,
         days: analysisDays
-      }) as unknown as MarketAnalysisData;
+      });
+      
+      console.log('AI分析响应:', response);
       
       if (response && response.success) {
         setAnalysisResult(response);
       } else {
-        message.warning(response.error_message || 'AI分析暂时不可用');
+        message.warning(response?.error_message || 'AI分析暂时不可用');
         setAnalysisResult(null);
       }
     } catch (err) {

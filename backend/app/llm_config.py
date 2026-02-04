@@ -545,18 +545,38 @@ class MiniMaxClient(LLMClientBase):
             response = self.http_client.post(self.ANTHROPIC_API_URL, json=payload)
             
             # Log the raw response for debugging
-            print(f"[MiniMax] Response status: {response.status_code}")
-            print(f"[MiniMax] Response body: {response.text[:500]}")
+            logger.info(f"[MiniMax] Response status: {response.status_code}")
+            logger.info(f"[MiniMax] Response body: {response.text[:1000]}")
             
             response.raise_for_status()
             result = response.json()
             
-            # Parse Anthropic-style response
-            content_blocks = result.get("content", [])
+            # Try to parse Anthropic-style response first
             content = ""
-            for block in content_blocks:
-                if block.get("type") == "text":
-                    content += block.get("text", "")
+            content_blocks = result.get("content", [])
+            if content_blocks and isinstance(content_blocks, list):
+                for block in content_blocks:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        content += block.get("text", "")
+            
+            # If content is empty, try alternative formats
+            if not content:
+                # MiniMax might return response in different format
+                if "choices" in result:
+                    # OpenAI compatible format
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                elif "output" in result:
+                    # DashScope compatible format
+                    content = result.get("output", {}).get("text", "")
+                elif "text" in result:
+                    # Direct text field
+                    content = result.get("text", "")
+                elif "data" in result:
+                    # Some other format
+                    content = str(result.get("data"))
+            
+            if not content:
+                raise ValueError("Empty response from MiniMax API")
             
             usage = result.get("usage", {})
             
