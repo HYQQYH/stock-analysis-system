@@ -500,8 +500,9 @@ class MiniMaxClient(LLMClientBase):
             if not api_key:
                 raise ValueError("MiniMax API key not configured")
             
+            # AI分析需要较长时间，使用5分钟超时
             self.http_client = httpx.Client(
-                timeout=httpx.Timeout(self.config.timeout),
+                timeout=httpx.Timeout(300),  # 5分钟超时
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
