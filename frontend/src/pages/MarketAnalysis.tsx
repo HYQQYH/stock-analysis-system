@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin } from 'antd';
+import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message } from 'antd';
 import { KLineChart, IndicatorCard, MarketDashboard } from '../components';
-import { useMarketStore, useLoadingStore, useToastStore, useStockStore } from '../store';
+import { useMarketStore, useLoadingStore } from '../store';
 import { marketApi } from '../services/api';
 
 const { Option } = Select;
@@ -9,22 +9,110 @@ const { RangePicker } = DatePicker;
 
 type KlineType = 'day' | 'week' | 'month';
 
+// 后端API返回的数据类型
+interface MarketIndexData {
+  index_code: string;
+  index_name: string;
+  kline_type: string;
+  data: Array<{
+    trade_date: string;
+    open_price: number;
+    high_price: number;
+    low_price: number;
+    close_price: number;
+    volume: number;
+    amount: number;
+  }>;
+}
+
+interface SentimentData {
+  trade_date: string;
+  index_code: string;
+  sentiment_score: number;
+  bull_bear_ratio: number;
+  rise_fall_count: {
+    rise: number;
+    fall: number;
+    flat: number;
+  };
+  volume_ratio: number | null;
+}
+
+interface FundFlowData {
+  trade_date: string;
+  sh_close_price: number;
+  sh_change_pct: number;
+  sz_close_price: number;
+  sz_change_pct: number;
+  main_net_inflow: number;
+  main_net_inflow_ratio: number;
+  super_large_net_inflow: number;
+  super_large_net_inflow_ratio: number;
+  large_net_inflow: number;
+  large_net_inflow_ratio: number;
+  medium_net_inflow: number;
+  medium_net_inflow_ratio: number;
+  small_net_inflow: number;
+  small_net_inflow_ratio: number;
+}
+
+interface LimitUpData {
+  trade_date: string;
+  total_count: number;
+  stocks: Array<{
+    stock_code: string;
+    stock_name: string;
+    change_pct: number;
+    latest_price: number;
+    turnover_amount: number;
+    circulation_market_value: number;
+    total_market_value: number;
+    turnover_rate: number;
+    limit_up_funds: number;
+    first_limit_time: string | null;
+    last_limit_time: string | null;
+    burst_count: number;
+    limit_up_stats: string | null;
+    continuous_limit_count: number;
+    industry: string | null;
+  }>;
+}
+
 function MarketAnalysis() {
-  const { 
-    indexKline, 
-    indexIndicators,
-    setIndexKline, 
-    setIndexIndicators 
-  } = useMarketStore();
+  const { indexKline, setIndexKline } = useMarketStore();
   const { marketLoading, setMarketLoading } = useLoadingStore();
-  const { showToast } = useToastStore();
 
   const [klineType, setKlineType] = useState<KlineType>('day');
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [marketData, setMarketData] = useState<{
-    indexData?: { close: number; change: number; changePct: number; volume: number; amount: number };
-    sentimentData?: { sentimentScore: number; bullBearRatio: number; riseCount: number; fallCount: number; limitUpCount: number; limitDownCount: number };
+    indexData?: {
+      close: number;
+      change: number;
+      changePct: number;
+      volume: number;
+      amount: number;
+    };
+    sentimentData?: {
+      sentimentScore: number;
+      bullBearRatio: number;
+      riseCount: number;
+      fallCount: number;
+      limitUpCount: number;
+      limitDownCount: number;
+    };
+    fundFlowData?: Array<{
+      type: string;
+      netInflow: number;
+      ratio: number;
+    }>;
+    recentLimitUp?: Array<{
+      code: string;
+      name: string;
+      changePct: number;
+      industry: string;
+    }>;
   }>({});
 
   // 获取大盘K线数据
@@ -37,61 +125,111 @@ function MarketAnalysis() {
         params.startDate = dateRange[0];
         params.endDate = dateRange[1];
       }
-      const response = await marketApi.getIndex(params);
-      setIndexKline(response);
+      const response = await marketApi.getIndex(params) as unknown as MarketIndexData;
+      
+      if (response && response.data && response.data.length > 0) {
+        // 转换为K线图需要的格式
+        const klineData = response.data.map((item) => ({
+          date: item.trade_date,
+          open: item.open_price,
+          high: item.high_price,
+          low: item.low_price,
+          close: item.close_price,
+          volume: item.volume,
+          amount: item.amount ?? undefined,
+        }));
+        setIndexKline(klineData);
+
+        // 计算大盘指数数据（最新一天）
+        const latest = response.data[0];
+        const previous = response.data[1] || latest;
+        const change = latest.close_price - previous.close_price;
+        const changePct = previous.close_price > 0 ? (change / previous.close_price) * 100 : 0;
+
+        setMarketData(prev => ({
+          ...prev,
+          indexData: {
+            close: latest.close_price,
+            change: change,
+            changePct: changePct,
+            volume: latest.volume,
+            amount: latest.amount,
+          },
+        }));
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '获取大盘数据失败';
-      setError(message);
-      showToast(message, 'error');
+      const messageText = err instanceof Error ? err.message : '获取大盘数据失败';
+      setError(messageText);
+      message.error(messageText);
     } finally {
       setMarketLoading(false);
+    }
+  };
+
+  // 获取市场数据（情绪、资金流向、涨停）
+  const fetchMarketData = async () => {
+    try {
+      // 并行获取所有数据
+      const [sentimentRes, fundFlowRes, limitUpRes] = await Promise.all([
+        marketApi.getSentiment().catch(() => null) as Promise<SentimentData | null>,
+        marketApi.getFundFlow({}).catch(() => null) as Promise<FundFlowData | null>,
+        marketApi.getLimitUp().catch(() => null) as Promise<LimitUpData | null>,
+      ]);
+
+      // 处理情绪数据
+      if (sentimentRes) {
+        setMarketData(prev => ({
+          ...prev,
+          sentimentData: {
+            sentimentScore: sentimentRes.sentiment_score,
+            bullBearRatio: sentimentRes.bull_bear_ratio,
+            riseCount: sentimentRes.rise_fall_count?.rise || 0,
+            fallCount: sentimentRes.rise_fall_count?.fall || 0,
+            limitUpCount: 0,
+            limitDownCount: 0,
+          },
+        }));
+      }
+
+      // 处理资金流向数据
+      if (fundFlowRes) {
+        const fundFlowList = [
+          { type: '主力净流入', netInflow: fundFlowRes.main_net_inflow, ratio: fundFlowRes.main_net_inflow_ratio },
+          { type: '超大单净流入', netInflow: fundFlowRes.super_large_net_inflow, ratio: fundFlowRes.super_large_net_inflow_ratio },
+          { type: '大单净流入', netInflow: fundFlowRes.large_net_inflow, ratio: fundFlowRes.large_net_inflow_ratio },
+          { type: '中单净流入', netInflow: fundFlowRes.medium_net_inflow, ratio: fundFlowRes.medium_net_inflow_ratio },
+          { type: '小单净流入', netInflow: fundFlowRes.small_net_inflow, ratio: fundFlowRes.small_net_inflow_ratio },
+        ];
+        setMarketData(prev => ({
+          ...prev,
+          fundFlowData: fundFlowList,
+        }));
+      }
+
+      // 处理涨停数据
+      if (limitUpRes && limitUpRes.stocks) {
+        const limitUpList = limitUpRes.stocks.slice(0, 10).map(stock => ({
+          code: stock.stock_code,
+          name: stock.stock_name,
+          changePct: stock.change_pct,
+          industry: stock.industry || '未知',
+        }));
+        setMarketData(prev => ({
+          ...prev,
+          recentLimitUp: limitUpList,
+        }));
+      }
+    } catch (err) {
+      console.error('获取市场数据失败:', err);
     }
   };
 
   // 获取技术指标
   const fetchIndicators = async () => {
     try {
-      // 这里可以添加获取大盘指标的方法
+      // 大盘技术指标暂时使用默认数据
     } catch (err) {
       console.error('获取技术指标失败:', err);
-    }
-  };
-
-  // 获取市场数据
-  const fetchMarketData = async () => {
-    try {
-      const [sentimentRes] = await Promise.all([
-        marketApi.getSentiment().catch(() => null),
-      ]);
-      
-      // 模拟一些基础数据
-      const indexData = {
-        close: 3054.28,
-        change: 15.47,
-        changePct: 0.51,
-        volume: 25678912345,
-        amount: 356789123456,
-      };
-      
-      const sentimentData = sentimentRes ? {
-        sentimentScore: sentimentRes.sentimentScore,
-        bullBearRatio: sentimentRes.bullBearRatio,
-        riseCount: sentimentRes.riseCount,
-        fallCount: sentimentRes.fallCount,
-        limitUpCount: 45,
-        limitDownCount: 5,
-      } : {
-        sentimentScore: 58,
-        bullBearRatio: 1.25,
-        riseCount: 1523,
-        fallCount: 823,
-        limitUpCount: 45,
-        limitDownCount: 5,
-      };
-
-      setMarketData({ indexData, sentimentData });
-    } catch (err) {
-      console.error('获取市场数据失败:', err);
     }
   };
 
@@ -100,30 +238,6 @@ function MarketAnalysis() {
     fetchIndexKline();
     fetchIndicators();
   }, [klineType]);
-
-  const fundFlowData = [
-    { type: '主力净流入', netInflow: 125.8, ratio: 35.2 },
-    { type: '超大单净流入', netInflow: 89.3, ratio: 25.1 },
-    { type: '大单净流入', netInflow: 36.5, ratio: 10.1 },
-    { type: '中单净流入', netInflow: -28.4, ratio: -8.2 },
-    { type: '小单净流入', netInflow: -122.2, ratio: -34.5 },
-  ];
-
-  const limitUpData = [
-    { code: '600000', name: '浦发银行', changePct: 10.05, industry: '银行' },
-    { code: '000001', name: '平安银行', changePct: 9.98, industry: '银行' },
-    { code: '600036', name: '招商银行', changePct: 8.75, industry: '银行' },
-    { code: '601398', name: '工商银行', changePct: 6.32, industry: '银行' },
-    { code: '601939', name: '建设银行', changePct: 5.89, industry: '银行' },
-  ];
-
-  if (marketLoading && indexKline.length === 0) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Spin size="large" tip="加载大盘数据..." />
-      </div>
-    );
-  }
 
   return (
     <div className="p-6">
@@ -146,8 +260,8 @@ function MarketAnalysis() {
       <MarketDashboard
         indexData={marketData.indexData}
         sentimentData={marketData.sentimentData}
-        fundFlowData={fundFlowData}
-        recentLimitUp={limitUpData}
+        fundFlowData={marketData.fundFlowData}
+        recentLimitUp={marketData.recentLimitUp}
       />
 
       {/* 控制栏 */}
@@ -202,29 +316,36 @@ function MarketAnalysis() {
       </Card>
 
       {/* 技术指标 */}
-      {indexIndicators && (
-        <Card title="技术指标分析" className="mb-6">
-          <IndicatorCard data={indexIndicators} />
-        </Card>
-      )}
-
-      {/* 资金流向 */}
-      <Card title="资金流向分析" className="mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {fundFlowData.map((item, index) => (
-            <div key={index} className="bg-gray-50 rounded-lg p-4 text-center">
-              <div className="text-gray-500 text-sm mb-1">{item.type}</div>
-              <div className={`text-xl font-bold ${
-                item.netInflow > 0 ? 'text-red-500' : 
-                item.netInflow < 0 ? 'text-green-500' : 'text-gray-500'
-              }`}>
-                {item.netInflow > 0 ? '+' : ''}{item.netInflow}亿
-              </div>
-              <div className="text-gray-400 text-xs">{item.ratio}%</div>
-            </div>
-          ))}
+      <Card title="技术指标分析" className="mb-6">
+        <div className="text-center py-10 text-gray-400">
+          技术指标分析功能开发中
         </div>
       </Card>
+
+      {/* 资金流向 */}
+      {marketData.fundFlowData && marketData.fundFlowData.length > 0 && (
+        <Card title="资金流向分析" className="mb-6">
+          <Row gutter={[16, 16]}>
+            {marketData.fundFlowData.map((item, index) => (
+              <Col xs={24} sm={12} md={8} lg={6} key={index}>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <div className="text-gray-500 text-sm mb-1">{item.type}</div>
+                  <div className={`text-xl font-bold ${
+                    (item.netInflow ?? 0) > 0 ? 'text-red-500' : 
+                    (item.netInflow ?? 0) < 0 ? 'text-green-500' : 'text-gray-500'
+                  }`}>
+                    {(item.netInflow ?? 0) > 0 ? '+' : ''}
+                    {Number((item.netInflow ?? 0) / 10000).toFixed(2)}万
+                  </div>
+                  <div className="text-gray-400 text-xs">
+                    {Number(item.ratio ?? 0).toFixed(2)}%
+                  </div>
+                </div>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+      )}
 
       {/* 市场活跃度 */}
       <Row gutter={[16, 16]}>
@@ -233,13 +354,13 @@ function MarketAnalysis() {
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-red-500 text-3xl font-bold">
-                  {marketData.sentimentData?.riseCount || 0}
+                  {marketData.sentimentData?.riseCount ?? '--'}
                 </div>
                 <div className="text-gray-500">上涨家数</div>
               </div>
               <div className="text-center">
                 <div className="text-green-500 text-3xl font-bold">
-                  {marketData.sentimentData?.fallCount || 0}
+                  {marketData.sentimentData?.fallCount ?? '--'}
                 </div>
                 <div className="text-gray-500">下跌家数</div>
               </div>
@@ -251,13 +372,13 @@ function MarketAnalysis() {
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-red-500 text-3xl font-bold">
-                  {marketData.sentimentData?.limitUpCount || 0}
+                  {marketData.sentimentData?.limitUpCount ?? '--'}
                 </div>
                 <div className="text-gray-500">涨停家数</div>
               </div>
               <div className="text-center">
                 <div className="text-green-500 text-3xl font-bold">
-                  {marketData.sentimentData?.limitDownCount || 0}
+                  {marketData.sentimentData?.limitDownCount ?? '--'}
                 </div>
                 <div className="text-gray-500">跌停家数</div>
               </div>
@@ -268,13 +389,13 @@ function MarketAnalysis() {
           <Card title="多空情绪" size="small">
             <div className="text-center">
               <div className="text-3xl font-bold" style={{ 
-                color: (marketData.sentimentData?.bullBearRatio || 0) > 1 ? '#ef4444' : '#22c55e'
+                color: (marketData.sentimentData?.bullBearRatio ?? 0) > 1 ? '#ef4444' : '#22c55e'
               }}>
-                {(marketData.sentimentData?.bullBearRatio || 0).toFixed(2)}
+                {Number(marketData.sentimentData?.bullBearRatio ?? 0).toFixed(2)}
               </div>
               <div className="text-gray-500">多空比</div>
               <div className="text-sm text-gray-400 mt-2">
-                {(marketData.sentimentData?.sentimentScore || 0).toFixed(0)}分
+                {Number(marketData.sentimentData?.sentimentScore ?? 0).toFixed(0)}分
               </div>
             </div>
           </Card>
