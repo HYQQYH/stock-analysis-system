@@ -11,12 +11,11 @@ from app.schemas.market import (
     MarketSentiment,
     FundFlowData,
     LimitUpStock,
-    MarketActivity,
-    MarketAnalysisResult
+    MarketActivity
 )
 from app.schemas.common import ApiResponse, HttpStatus
 from app.services.indicator_calculator import IndicatorCalculator
-from app.services.ai_analyzer import analyze_market, MarketAnalysisResult as AIMarketAnalysisResult
+from app.services.ai_analyzer import analyze_market, MarketAnalysisResult
 
 router = APIRouter(prefix="/market", tags=["Market"])
 indicator_calculator = IndicatorCalculator()
