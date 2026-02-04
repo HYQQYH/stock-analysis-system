@@ -7,3 +7,4 @@ export { NewsList } from './NewsList';
 export { MarketDashboard } from './MarketDashboard';
 export { default as HistoryList } from './HistoryList';
 export { MarkdownRenderer, TechnicalAnalysisCard } from './MarkdownRenderer';
+export { default as MarketAnalysisHistory } from './MarketAnalysisHistory';

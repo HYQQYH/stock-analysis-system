@@ -306,6 +306,7 @@ async def create_analysis(request: AnalysisRequest, background_tasks: Background
 @router.get("/history", response_model=ApiResponse[PaginatedResponse[AnalysisHistoryItem]])
 async def get_analysis_history(
     stock_code: Optional[str] = Query(None, description="Filter by stock code"),
+    analysis_type: Optional[str] = Query(None, description="Filter by analysis type (stock/index)"),
     status_filter: Optional[AnalysisStatus] = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -315,6 +316,7 @@ async def get_analysis_history(
     Get analysis history from database
     
     - **stock_code**: Optional filter by stock code
+    - **analysis_type**: Optional filter by analysis type (stock/index)
     - **status_filter**: Optional filter by status
     - **page**: Page number (starts from 1)
     - **page_size**: Items per page (1-100)
@@ -325,6 +327,9 @@ async def get_analysis_history(
         
         if stock_code:
             query = query.filter(AnalysisHistoryModel.stock_code == stock_code)
+        
+        if analysis_type:
+            query = query.filter(AnalysisHistoryModel.analysis_type == analysis_type)
         
         if status_filter:
             db_status = map_api_status_to_enum(status_filter)

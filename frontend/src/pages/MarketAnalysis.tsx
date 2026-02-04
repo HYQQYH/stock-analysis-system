@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message, Button } from 'antd';
-import { KLineChart, IndicatorCard, MarketDashboard, TechnicalAnalysisCard } from '../components';
+import { KLineChart, IndicatorCard, MarketDashboard, TechnicalAnalysisCard, MarketAnalysisHistory } from '../components';
 import { useMarketStore, useLoadingStore } from '../store';
 import { marketApi } from '../services/api';
 
@@ -451,7 +451,7 @@ function MarketAnalysis() {
       )}
 
       {/* 市场活跃度 */}
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} md={8}>
           <Card title="涨跌统计" size="small">
             <div className="grid grid-cols-2 gap-4">
@@ -504,6 +504,9 @@ function MarketAnalysis() {
           </Card>
         </Col>
       </Row>
+
+      {/* 大盘分析历史记录 */}
+      <MarketAnalysisHistory />
     </div>
   );
 }

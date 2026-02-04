@@ -102,11 +102,14 @@ export const analysisApi = {
         confidence_score: number;
         llm_model?: string;
       };
+      error_message?: string | null;
+      created_at: string;
+      updated_at: string;
     }>(`/analysis/${analysisId}`),
   
   // 后端返回格式: { code: 200, message: "success", data: { total: N, page: 1, page_size: 10, data: [...] } }
-  getHistory: (params?: { page?: number; pageSize?: number; stockCode?: string }) => 
-    get<{ total: number; page: number; page_size: number; data: Array<{ id: string; stock_code: string; analysis_mode: string; status: string; analysis_time: string; confidence_score: number; created_at: string }> }>('/analysis/history', params),
+  getHistory: (params?: { page?: number; pageSize?: number; stockCode?: string; analysisType?: string }) => 
+    get<{ total: number; page: number; page_size: number; data: Array<{ analysis_id: string; stock_code: string; analysis_mode: string; status: string; analysis_time: string; confidence_score: number | null; created_at: string }> }>('/analysis/history', params),
   
   deleteAnalysis: (id: string) => del(`/analysis/${id}`),
 };
