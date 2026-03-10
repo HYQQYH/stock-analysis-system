@@ -147,7 +147,7 @@ class OpenAIClient(LLMClientBase):
             )
             return True
         except Exception as e:
-            print(f"Failed to initialize OpenAI client: {e}")
+            logger.info(f"Failed to initialize OpenAI client: {e}")
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -242,7 +242,7 @@ class DashScopeClient(LLMClientBase):
             )
             return True
         except Exception as e:
-            print(f"Failed to initialize DashScope client: {e}")
+            logger.info(f"Failed to initialize DashScope client: {e}")
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -334,7 +334,7 @@ class ZhipuGLMClient(LLMClientBase):
             )
             return True
         except Exception as e:
-            print(f"Failed to initialize Zhipu GLM client: {e}")
+            logger.info(f"Failed to initialize Zhipu GLM client: {e}")
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -413,7 +413,7 @@ class OllamaClient(LLMClientBase):
             response.raise_for_status()
             return True
         except Exception as e:
-            print(f"Failed to initialize Ollama client: {e}")
+            logger.info(f"Failed to initialize Ollama client: {e}")
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -512,7 +512,7 @@ class MiniMaxClient(LLMClientBase):
             )
             return True
         except Exception as e:
-            print(f"Failed to initialize MiniMax client: {e}")
+            logger.info(f"Failed to initialize MiniMax client: {e}")
             return False
     
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -629,7 +629,7 @@ class LLMManager:
         LLMProvider.OPENAI: "gpt-3.5-turbo",
         LLMProvider.DASHSCOPE: "qwen-turbo",
         LLMProvider.ZHIPU: "glm-4.7",
-        LLMProvider.MINIMAX: "MiniMax-M2.1",  # MiniMax official model name
+        LLMProvider.MINIMAX: "MiniMax-M2.5",  # MiniMax official model name
         LLMProvider.OLLAMA: "llama2"
     }
     
@@ -675,7 +675,7 @@ class LLMManager:
                         self.current_provider = fallback_provider
                         self.current_client = self.clients[fallback_provider]
                         success = True
-                        print(f"Fallback to {fallback_provider.value}")
+                        logger.info(f"Fallback to {fallback_provider.value}")
                         break
         
         self.initialized = success
@@ -693,7 +693,7 @@ class LLMManager:
             
             return False
         except Exception as e:
-            print(f"Failed to initialize provider {provider.value}: {e}")
+            logger.info(f"Failed to initialize provider {provider.value}: {e}")
             return False
     
     def _create_config(self, provider: LLMProvider) -> LLMConfig:
@@ -913,36 +913,36 @@ def create_chat_message(role: str, content: str) -> Dict[str, str]:
 
 # Test function
 def test_llm_connection():
-    """Test LLM connection and print model info"""
-    print("Testing LLM connection...")
+    """Test LLM connection and logger.info model info"""
+    logger.info("Testing LLM connection...")
     
     manager = get_llm_manager()
     if not manager.initialize():
-        print("Failed to initialize LLM manager (no API keys configured)")
-        print("This is expected if no LLM API keys are set in .env")
+        logger.info("Failed to initialize LLM manager (no API keys configured)")
+        logger.info("This is expected if no LLM API keys are set in .env")
         return True  # Not a failure, just no keys
     
-    print(f"Current provider: {manager.current_provider.value}")
+    logger.info(f"Current provider: {manager.current_provider.value}")
     
     # Get model info
     model_info = manager.get_model_info()
-    print(f"Model info: {json.dumps(model_info, indent=2, ensure_ascii=False)}")
+    logger.info(f"Model info: {json.dumps(model_info, indent=2, ensure_ascii=False)}")
     
     # Test simple invocation
     messages = [create_chat_message("user", "你好，请做一个简单的自我介绍")]
     response = manager.invoke(messages)
     
-    print(f"\nResponse success: {response.success}")
-    print(f"Response time: {response.response_time_ms:.2f}ms")
-    print(f"Token usage: {response.token_usage}")
+    logger.info(f"\nResponse success: {response.success}")
+    logger.info(f"Response time: {response.response_time_ms:.2f}ms")
+    logger.info(f"Token usage: {response.token_usage}")
     
     if response.success:
-        print(f"\nResponse content:\n{response.content}")
+        logger.info(f"\nResponse content:\n{response.content}")
     else:
-        print(f"Error: {response.error_message}")
+        logger.info(f"Error: {response.error_message}")
     
     # Show available providers
-    print(f"\nAvailable providers: {json.dumps(manager.get_available_providers(), indent=2, ensure_ascii=False)}")
+    logger.info(f"\nAvailable providers: {json.dumps(manager.get_available_providers(), indent=2, ensure_ascii=False)}")
     
     return response.success
 

@@ -170,4 +170,43 @@ export const newsApi = {
     get<{ id: string; title: string; content: string; source: string; publishTime: string; investmentAdvice?: string }>(`/news/${id}`),
 };
 
+// Asserts相关 API
+export interface FileItem {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size: number;
+}
+
+export interface AssertsStructure {
+  summary_dates: string[];
+  output_files: string[];
+}
+
+export interface FileContent {
+  name: string;
+  path: string;
+  content: string;
+  content_type: string;
+  size: number;
+}
+
+export const assertsApi = {
+  // 获取asserts目录结构
+  getStructure: () => get<AssertsStructure>('/asserts/structure'),
+  
+  // 获取指定文件夹下的文件列表
+  getFiles: (folder?: string) => 
+    get<FileItem[]>('/asserts/files', folder ? { folder } : undefined),
+  
+  // 获取文件内容
+  getContent: (path: string) => get<FileContent>('/asserts/content', { path }),
+  
+  // 下载文件
+  download: (path: string) => {
+    const url = `${api.defaults.baseURL}/asserts/download?path=${encodeURIComponent(path)}`;
+    window.open(url, '_blank');
+  }
+};
+
 export default api;

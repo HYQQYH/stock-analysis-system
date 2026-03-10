@@ -13,6 +13,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
     { key: '/market-analysis', label: <Link to="/market-analysis">大盘分析</Link> },
     { key: '/news', label: <Link to="/news">新闻资讯</Link> },
     { key: '/limit-up', label: <Link to="/limit-up">涨停股池</Link> },
+    { key: '/asserts', label: <Link to="/asserts">资源文件</Link> },
   ];
 
   return (

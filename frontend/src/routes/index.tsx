@@ -5,6 +5,7 @@ import StockAnalysis from '../pages/StockAnalysis';
 import MarketAnalysis from '../pages/MarketAnalysis';
 import News from '../pages/News';
 import LimitUp from '../pages/LimitUp';
+import Asserts from '../pages/Asserts';
 
 const router = createBrowserRouter([
   {
@@ -44,6 +45,14 @@ const router = createBrowserRouter([
     element: (
       <MainLayout>
         <LimitUp />
+      </MainLayout>
+    ),
+  },
+  {
+    path: '/asserts',
+    element: (
+      <MainLayout>
+        <Asserts />
       </MainLayout>
     ),
   },
