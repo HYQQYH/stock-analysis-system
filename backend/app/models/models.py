@@ -137,6 +137,7 @@ class AnalysisHistory(Base):
     input_hash = Column(String(64))
     status = Column(Enum(AnalysisStatusEnum), default=AnalysisStatusEnum.PENDING, index=True)
     error_message = Column(Text)
+    pipeline_steps = Column(JSON, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

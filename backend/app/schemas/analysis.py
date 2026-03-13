@@ -113,6 +113,28 @@ class AnalysisResult(BaseModel):
         }
 
 
+class PipelineStep(BaseModel):
+    """Pipeline Step Structure"""
+    step: str = Field(..., description="Step name")
+    message: str = Field(..., description="Step message")
+    status: str = Field(default="pending", description="Step status: pending/running/completed/error")
+    duration_ms: Optional[int] = Field(None, description="Step duration in milliseconds")
+    timestamp: Optional[str] = Field(None, description="Step timestamp")
+    data: Optional[dict] = Field(None, description="Step additional data")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "step": "data_collection",
+                "message": "Collecting stock data",
+                "status": "completed",
+                "duration_ms": 1250,
+                "timestamp": "2026-01-28T12:00:01Z",
+                "data": {"has_kline_data": True}
+            }
+        }
+
+
 class AnalysisDetail(BaseModel):
     """Analysis Detail Response"""
     analysis_id: str = Field(..., description="Unique analysis ID")
@@ -123,6 +145,7 @@ class AnalysisDetail(BaseModel):
     input_data: Optional[dict] = Field(None, description="Input data summary")
     result: Optional[AnalysisResult] = Field(None, description="Analysis result (if completed)")
     error_message: Optional[str] = Field(None, description="Error message (if failed)")
+    pipeline_steps: Optional[List[PipelineStep]] = Field(None, description="Pipeline execution steps")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
@@ -146,6 +169,14 @@ class AnalysisDetail(BaseModel):
                     },
                     "confidence_score": 0.78
                 },
+                "pipeline_steps": [
+                    {"step": "validation", "message": "Validating stock code", "status": "completed", "duration_ms": 50},
+                    {"step": "data_collection", "message": "Collecting stock data", "status": "completed", "duration_ms": 1250},
+                    {"step": "indicator_calculation", "message": "Calculating technical indicators", "status": "completed", "duration_ms": 320},
+                    {"step": "data_caching", "message": "Caching collected data", "status": "completed", "duration_ms": 80},
+                    {"step": "ai_analysis", "message": "Running AI analysis", "status": "completed", "duration_ms": 8500},
+                    {"step": "database_save", "message": "Saving results to database", "status": "completed", "duration_ms": 120}
+                ],
                 "created_at": "2026-01-28T12:00:00Z",
                 "updated_at": "2026-01-28T12:05:00Z"
             }

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin, Collapse } from 'antd';
+import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin, Timeline } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStockStore, useAnalysisStore, useLoadingStore, useToastStore } from '../store';
-import { stockApi, analysisApi } from '../services/api';
+import { stockApi, analysisApi, PipelineStep } from '../services/api';
 import { HistoryList } from '../components';
 
 const { Option } = Select;
@@ -19,6 +19,16 @@ const ANALYSIS_MODES: AnalysisMode[] = [
   '投机套利分析',
   '公司估值分析',
 ];
+
+// Pipeline step display names mapping
+const STEP_TITLES: Record<string, string> = {
+  validation: '验证股票代码',
+  data_collection: '收集股票数据',
+  indicator_calculation: '计算技术指标',
+  data_caching: '缓存数据',
+  ai_analysis: 'AI智能分析',
+  database_save: '保存结果',
+};
 
 interface AnalysisResultData {
   id: string;
@@ -61,7 +71,6 @@ function StockAnalysis() {
   const [stockCode, setStockCode] = useState('');
   const [inputSectorName, setInputSectorName] = useState('');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('短线T+1分析');
-  // 注意：后端返回snake_case字段名
   const [result, setResult] = useState<{
     summary: string;
     details: string;
@@ -78,6 +87,10 @@ function StockAnalysis() {
     trend?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Pipeline steps for displaying analysis progress
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([]);
+  // Track if we're currently in analysis
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // 从持久化恢复状态
   useEffect(() => {
@@ -138,7 +151,51 @@ function StockAnalysis() {
 
     setError(null);
     setResult(null);
+    // 设置初始的步骤列表 - 点击开始分析后立即显示
+    setPipelineSteps([
+      { step: 'validation', message: '验证股票代码', status: 'pending', timestamp: new Date().toISOString() },
+      { step: 'data_collection', message: '收集股票数据', status: 'pending', timestamp: '' },
+      { step: 'indicator_calculation', message: '计算技术指标', status: 'pending', timestamp: '' },
+      { step: 'data_caching', message: '缓存数据', status: 'pending', timestamp: '' },
+      { step: 'ai_analysis', message: 'AI智能分析', status: 'pending', timestamp: '' },
+      { step: 'database_save', message: '保存结果', status: 'pending', timestamp: '' },
+    ]);
     setAnalysisLoading(true);
+    setIsAnalyzing(true);
+
+    // 模拟进度更新 - 除了AI分析外的其他步骤都很快
+    const simulateProgress = () => {
+      setPipelineSteps(prev => {
+        const newSteps = [...prev];
+        
+        // 1. 验证完成 (0.5秒后)
+        if (newSteps[0].status === 'pending') {
+          newSteps[0] = { ...newSteps[0], status: 'running', timestamp: new Date().toISOString() };
+        } else if (newSteps[0].status === 'running') {
+          newSteps[0] = { ...newSteps[0], status: 'completed', duration_ms: 200, timestamp: new Date().toISOString() };
+          
+          // 2. 数据收集开始
+          newSteps[1] = { ...newSteps[1], status: 'running', timestamp: new Date().toISOString() };
+        } else if (newSteps[1].status === 'running') {
+          // 3. 数据收集完成，指标计算开始
+          newSteps[1] = { ...newSteps[1], status: 'completed', duration_ms: 1500, timestamp: new Date().toISOString() };
+          newSteps[2] = { ...newSteps[2], status: 'running', timestamp: new Date().toISOString() };
+        } else if (newSteps[2].status === 'running') {
+          // 4. 指标计算完成，缓存开始
+          newSteps[2] = { ...newSteps[2], status: 'completed', duration_ms: 300, timestamp: new Date().toISOString() };
+          newSteps[3] = { ...newSteps[3], status: 'running', timestamp: new Date().toISOString() };
+        } else if (newSteps[3].status === 'running') {
+          // 5. 缓存完成，AI分析开始
+          newSteps[3] = { ...newSteps[3], status: 'completed', duration_ms: 100, timestamp: new Date().toISOString() };
+          newSteps[4] = { ...newSteps[4], status: 'running', timestamp: new Date().toISOString() };
+        }
+        
+        return newSteps;
+      });
+    };
+
+    // 启动模拟进度更新 (每500ms更新一次)
+    const progressInterval = setInterval(simulateProgress, 500);
 
     const analysisId = `analysis_${Date.now()}`;
     
@@ -165,19 +222,29 @@ function StockAnalysis() {
         include_news: true,
       });
 
+      console.log('Analysis submitted, ID:', submitResponse.analysis_id);
+
       // 轮询获取结果
       let attempts = 0;
-      const maxAttempts = 120; // 增加超时时间
+      const maxAttempts = 120;
 
       while (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         const resultResponse = await analysisApi.getAnalysisResult(submitResponse.analysis_id);
+        console.log('Poll attempt', attempts, 'status:', resultResponse.status, 'steps:', resultResponse.pipeline_steps?.length);
+        
+        // 更新 pipeline 步骤 - 确保在完成前先显示步骤
+        if (resultResponse.pipeline_steps && resultResponse.pipeline_steps.length > 0) {
+          console.log('Setting pipeline steps:', resultResponse.pipeline_steps);
+          setPipelineSteps(resultResponse.pipeline_steps);
+        }
         
         if (resultResponse.status === 'completed') {
+          // 确保至少显示一下步骤，然后再显示结果
           const data = resultResponse;
           
-          // 解析分析结果 - 后端返回的数据嵌套在 result 中
+          // 解析分析结果
           const resultData = data.result;
           const analysisResult = {
             summary: resultData?.analysis_result?.substring(0, 200) || '暂无分析结果',
@@ -187,24 +254,32 @@ function StockAnalysis() {
             llm_model: resultData?.llm_model,
           };
           
-          setResult(analysisResult);
+          // 先设置步骤，然后延迟设置结果，确保UI有时间渲染
+          setTimeout(() => {
+            clearInterval(progressInterval); // 清理进度模拟
+            setResult(analysisResult);
+            setIsAnalyzing(false);
+            
+            // 保存到历史记录
+            addAnalysis({
+              id: data.id || data.analysis_id || submitResponse.analysis_id,
+              stockCode: data.stock_code,
+              analysisMode,
+              analysisTime: data.analysis_time || new Date().toISOString(),
+              summary: resultData?.analysis_result?.substring(0, 200) || '暂无分析结果',
+              details: resultData?.analysis_result || '暂无分析结果',
+              tradingAdvice: resultData?.trading_advice as any,
+              confidenceScore: resultData?.confidence_score || 0,
+              status: 'completed',
+            });
+            
+            showToast('分析完成', 'success');
+          }, 1500); // 延迟1.5秒，让用户看到步骤完成
           
-          // 保存到历史记录
-          addAnalysis({
-            id: data.id || data.analysis_id || submitResponse.analysis_id,
-            stockCode: data.stock_code,
-            analysisMode,
-            analysisTime: data.analysis_time || new Date().toISOString(),
-            summary: resultData?.analysis_result?.substring(0, 200) || '暂无分析结果',
-            details: resultData?.analysis_result || '暂无分析结果',
-            tradingAdvice: resultData?.trading_advice as any,
-            confidenceScore: resultData?.confidence_score || 0,
-            status: 'completed',
-          });
-          
-          showToast('分析完成', 'success');
           break;
         } else if (resultResponse.status === 'failed') {
+          clearInterval(progressInterval);
+          setIsAnalyzing(false);
           throw new Error('分析任务失败');
         }
         
@@ -212,13 +287,18 @@ function StockAnalysis() {
       }
 
       if (attempts >= maxAttempts) {
+        clearInterval(progressInterval);
+        setIsAnalyzing(false);
         throw new Error('分析超时，请稍后重试');
       }
     } catch (err) {
+      clearInterval(progressInterval);
       const message = err instanceof Error ? err.message : '分析失败';
       setError(message);
+      setIsAnalyzing(false);
       showToast(message, 'error');
     } finally {
+      clearInterval(progressInterval);
       setAnalysisLoading(false);
     }
   };
@@ -229,6 +309,8 @@ function StockAnalysis() {
     setInputSectorName('');
     setResult(null);
     setError(null);
+    setPipelineSteps([]);
+    setIsAnalyzing(false);
     clearStockData();
     showToast('已清空查询', 'info');
   };
@@ -248,6 +330,23 @@ function StockAnalysis() {
       case '持有': return 'blue';
       default: return 'default';
     }
+  };
+
+  // 获取步骤状态颜色
+  const getStepStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'green';
+      case 'running': return 'blue';
+      case 'error': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  // 格式化耗时
+  const formatDuration = (ms?: number) => {
+    if (!ms) return '';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
   };
 
   return (
@@ -397,8 +496,48 @@ function StockAnalysis() {
         </Card>
       )}
 
-      {/* 分析结果 */}
-      {result && (
+      {/* 分析进度步骤展示 - 类似ChatGPT风格 */}
+      {isAnalyzing && pipelineSteps.length > 0 && (
+        <Card 
+          title={
+            <div className="flex items-center gap-2">
+              <Spin size="small" />
+              <span>AI分析进度</span>
+            </div>
+          } 
+          className="mb-6"
+        >
+          <Timeline
+            items={pipelineSteps.map((step, index) => ({
+              color: getStepStatusColor(step.status),
+              children: (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={`font-medium ${
+                      step.status === 'completed' ? 'text-green-600' :
+                      step.status === 'running' ? 'text-blue-600' :
+                      step.status === 'error' ? 'text-red-600' : 'text-gray-400'
+                    }`}>
+                      {STEP_TITLES[step.step] || step.message}
+                    </span>
+                    {step.status === 'running' && (
+                      <span className="ml-2 text-blue-500 text-sm">处理中...</span>
+                    )}
+                  </div>
+                  {step.duration_ms && step.status === 'completed' && (
+                    <span className="text-gray-400 text-sm ml-4">
+                      {formatDuration(step.duration_ms)}
+                    </span>
+                  )}
+                </div>
+              ),
+            }))}
+          />
+        </Card>
+      )}
+
+      {/* 分析结果 - 完成后隐藏步骤 */}
+      {result && !isAnalyzing && (
         <Card title="AI分析结果" className="mb-6">
           {/* 置信度和元信息 */}
           <div className="mb-4 flex flex-wrap items-center gap-4">
@@ -507,7 +646,7 @@ function StockAnalysis() {
       <HistoryList stockCode={stockCode || undefined} />
 
       {/* 初始状态提示 */}
-      {!currentStock && !result && !analysisLoading && (
+      {!currentStock && !result && !analysisLoading && !isAnalyzing && (
         <Result
           status="info"
           title="股票分析"

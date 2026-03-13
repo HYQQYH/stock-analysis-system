@@ -133,6 +133,16 @@ export const marketApi = {
     del(`/market/analysis/${analysisId}`),
 };
 
+// Pipeline Step 类型
+export interface PipelineStep {
+  step: string;
+  message: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  duration_ms?: number;
+  timestamp?: string;
+  data?: Record<string, unknown>;
+}
+
 // 分析相关 API
 export const analysisApi = {
   submitAnalysis: (data: { stock_code: string; analysis_mode: string; kline_type: string; sector_names?: string[]; include_news?: boolean }) => 
@@ -143,12 +153,13 @@ export const analysisApi = {
     get<{
       id: string; analysis_id: string; stock_code: string; analysis_mode: string; status: string;
       analysis_time: string;
-      result: {
+      result?: {
         analysis_result: string;
         trading_advice: { direction: string; target_price?: number; stop_loss?: number; take_profit?: number; holding_period?: number; risk_level?: string };
         confidence_score: number;
         llm_model?: string;
       };
+      pipeline_steps?: PipelineStep[];
       error_message?: string | null;
       created_at: string;
       updated_at: string;

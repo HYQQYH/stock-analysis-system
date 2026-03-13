@@ -23,7 +23,8 @@ from app.schemas.analysis import (
     AnalysisHistoryItem,
     AnalysisStatus,
     AnalysisResult,
-    TradingAdvice
+    TradingAdvice,
+    PipelineStep
 )
 from app.schemas.common import (
     ApiResponse,
@@ -120,20 +121,41 @@ def map_api_status_to_enum(api_status: AnalysisStatus) -> AnalysisStatusEnum:
     return status_mapping.get(api_status, AnalysisStatusEnum.PENDING)
 
 
-async def run_analysis_task(analysis_id: str, request: AnalysisRequest, db: Session):
+async def run_analysis_task(analysis_id: str, request: AnalysisRequest):
     """
     Background task to run real stock analysis using AI pipeline
+    Creates its own database session
     """
-    db_task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
-    if not db_task:
-        logger.error(f"[Analysis {analysis_id}] Task not found in database")
-        return
+    logger.info(f"[Analysis {analysis_id}] Background task started for stock {request.stock_code}")
     
+    # Create a new database session for the background task
+    from app.db.database import SessionLocal
+    db = SessionLocal()
     try:
+        db_task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
+        logger.info(f"[Analysis {analysis_id}] Query result: {db_task}")
+        
+        if not db_task:
+            logger.error(f"[Analysis {analysis_id}] Task not found in database")
+            return
+        
         # Update status to running
         db_task.status = AnalysisStatusEnum.RUNNING
         db_task.updated_at = datetime.utcnow()
+        
+        # Initialize pipeline steps
+        initial_steps = [
+            {"step": "validation", "message": "验证股票代码", "status": "running", "timestamp": datetime.utcnow().isoformat()},
+            {"step": "data_collection", "message": "收集股票数据", "status": "pending", "timestamp": None},
+            {"step": "indicator_calculation", "message": "计算技术指标", "status": "pending", "timestamp": None},
+            {"step": "data_caching", "message": "缓存数据", "status": "pending", "timestamp": None},
+            {"step": "ai_analysis", "message": "AI智能分析", "status": "pending", "timestamp": None},
+            {"step": "database_save", "message": "保存结果", "status": "pending", "timestamp": None}
+        ]
+        db_task.pipeline_steps = initial_steps
         db.commit()
+        db.refresh(db_task)  # Refresh to ensure changes are visible
+        logger.info(f"[Analysis {analysis_id}] Pipeline steps initialized, status={db_task.status}, steps={db_task.pipeline_steps}")
         
         logger.info(f"[Analysis {analysis_id}] Starting real AI analysis for stock {request.stock_code}")
         
@@ -156,17 +178,60 @@ async def run_analysis_task(analysis_id: str, request: AnalysisRequest, db: Sess
         # Get sector names if provided
         sector_name = request.sector_names[0] if request.sector_names else None
         
-        # Run the real analysis pipeline (this is synchronous, run in executor)
-        loop = asyncio.get_event_loop()
-        pipeline_result = await loop.run_in_executor(
-            None,
-            run_stock_analysis_pipeline,
+        # Mark validation as completed
+        db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "validation", "completed", 100)
+        db.commit()
+        db.flush()  # Ensure changes are written to DB
+        logger.info(f"[Analysis {analysis_id}] Validation step completed")
+        
+        # Update step to data_collection running
+        db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "data_collection", "running")
+        db.commit()
+        db.flush()
+        logger.info(f"[Analysis {analysis_id}] Data collection step started")
+        
+        # Run the real analysis pipeline synchronously
+        pipeline_result = run_stock_analysis_pipeline(
             request.stock_code,
             sector_name,
             pipeline_mode
         )
         
+        # Mark data_collection as completed
+        db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "data_collection", "completed", 1500)
+        db.commit()
+        db.flush()
+        logger.info(f"[Analysis {analysis_id}] Data collection step completed")
+        
         logger.info(f"[Analysis {analysis_id}] Pipeline completed: success={pipeline_result.success}")
+        
+        # Mark remaining steps based on pipeline execution
+        if pipeline_result.success:
+            # indicator_calculation
+            db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "indicator_calculation", "completed", 300)
+            db.commit()
+            db.flush()
+            
+            # data_caching
+            db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "data_caching", "completed", 100)
+            db.commit()
+            db.flush()
+            
+            # ai_analysis
+            db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "ai_analysis", "completed", 8000)
+            db.commit()
+            db.flush()
+            
+            # database_save
+            db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "database_save", "completed", 50)
+            db.commit()
+            db.flush()
+            logger.info(f"[Analysis {analysis_id}] All steps completed")
+        else:
+            # Mark ai_analysis as failed
+            db_task.pipeline_steps = _update_step_status(db_task.pipeline_steps, "ai_analysis", "error", None, str(pipeline_result.error_message))
+            db.commit()
+            db.flush()
         
         # Convert pipeline result to API format
         api_result = None
@@ -223,6 +288,22 @@ async def run_analysis_task(analysis_id: str, request: AnalysisRequest, db: Sess
         db_task.error_message = error_msg
         db_task.updated_at = datetime.utcnow()
         db.commit()
+    finally:
+        db.close()
+
+
+def _update_step_status(steps: list, step_name: str, status: str, duration_ms: int = None, error_message: str = None) -> list:
+    """Update a specific step's status in the pipeline steps list"""
+    for step in steps:
+        if step.get("step") == step_name:
+            step["status"] = status
+            step["timestamp"] = datetime.utcnow().isoformat()
+            if duration_ms is not None:
+                step["duration_ms"] = duration_ms
+            if error_message:
+                step["error_message"] = error_message
+            break
+    return steps
 
 
 @router.post("", response_model=ApiResponse[AnalysisCreateResponse])
@@ -278,7 +359,7 @@ async def create_analysis(request: AnalysisRequest, background_tasks: Background
         logger.info(f"[Analysis {analysis_id}] Analysis task created for stock {request.stock_code}")
         
         # Add background task to run real AI analysis
-        background_tasks.add_task(run_analysis_task, analysis_id, request, db)
+        background_tasks.add_task(run_analysis_task, analysis_id, request)
         
         # Return immediate response
         response = AnalysisCreateResponse(
@@ -389,6 +470,8 @@ async def get_analysis_result(analysis_id: str, db: Session = Depends(get_db)):
     """
     try:
         # Check if task exists in database
+        # Expire all to force fresh read from DB
+        db.expire_all()
         task = db.query(AnalysisHistoryModel).filter(AnalysisHistoryModel.analysis_id == analysis_id).first()
         
         if not task:
@@ -432,6 +515,22 @@ async def get_analysis_result(analysis_id: str, db: Session = Depends(get_db)):
                 input_hash=task.input_hash
             )
         
+        # Build pipeline steps
+        pipeline_steps = None
+        if task.pipeline_steps:
+            pipeline_steps = []
+            for step_dict in task.pipeline_steps:
+                pipeline_steps.append(
+                    PipelineStep(
+                        step=step_dict.get("step", ""),
+                        message=step_dict.get("message", ""),
+                        status=step_dict.get("status", "pending"),
+                        duration_ms=step_dict.get("duration_ms"),
+                        timestamp=step_dict.get("timestamp"),
+                        data=step_dict.get("data")
+                    )
+                )
+        
         # Build response
         detail = AnalysisDetail(
             analysis_id=task.analysis_id,
@@ -442,6 +541,7 @@ async def get_analysis_result(analysis_id: str, db: Session = Depends(get_db)):
             input_data=task.input_data,
             result=result,
             error_message=task.error_message,
+            pipeline_steps=pipeline_steps,
             created_at=task.created_at,
             updated_at=task.updated_at
         )

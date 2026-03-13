@@ -506,7 +506,7 @@ class AIAnalyzer:
                 )
             
             logger.info("Generated Prompt:")
-            logger.info(prompt)
+            # logger.info(prompt)
             # Create messages
             messages = [
                 create_chat_message("system", "你是一位专业的股票分析师，请提供客观、准确的分析。"),
@@ -516,7 +516,7 @@ class AIAnalyzer:
             # Invoke LLM with retry
             response = self._invoke_with_retry(messages)
             logger.info("LLM Response:")
-            logger.info(response.content)
+            # logger.info(response.content)
             
             # Parse response
             analysis_content = response.content
