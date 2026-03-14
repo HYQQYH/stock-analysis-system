@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message, Button } from 'antd';
+import { Card, Row, Col, Select, DatePicker, Space, Alert, Spin, message, Button, Progress, Steps } from 'antd';
 import { KLineChart, IndicatorCard, MarketDashboard, TechnicalAnalysisCard, MarketAnalysisHistory } from '../components';
 import { useMarketStore, useLoadingStore } from '../store';
 import { marketApi } from '../services/api';
@@ -398,13 +398,42 @@ function MarketAnalysis() {
             onClick={handleAnalyze}
             loading={analysisLoading}
             icon={<span className="mr-1">📊</span>}
+            disabled={analysisLoading}
           >
             {analysisLoading ? 'AI分析中...' : '开始AI分析'}
           </Button>
         </div>
         
+        {/* AI分析进度展示 */}
+        {analysisLoading && (
+          <div className="mb-6">
+            <div className="flex items-center justify-center mb-4">
+              <Spin size="large" />
+              <span className="ml-4 text-lg text-gray-600">AI正在分析大盘走势，请稍候...</span>
+            </div>
+            <div className="mb-4">
+              <Steps
+                current={0}
+                status="process"
+                items={[
+                  { title: '获取数据', description: '正在获取K线数据...' },
+                  { title: '计算指标', description: '正在计算技术指标...' },
+                  { title: 'AI分析', description: '正在调用AI模型分析...' },
+                  { title: '生成报告', description: '正在生成分析报告...' },
+                ]}
+              />
+            </div>
+            <Progress 
+              percent={75} 
+              status="active" 
+              strokeColor={{ from: '#108ee9', to: '#87d068' }}
+              format={() => 'AI分析进行中...'}
+            />
+          </div>
+        )}
+        
         {/* AI分析结果展示 */}
-        {analysisResult ? (
+        {!analysisLoading && analysisResult && (
           <TechnicalAnalysisCard
             analysisContent={analysisResult.analysis_content}
             trend={analysisResult.trend}
@@ -415,7 +444,10 @@ function MarketAnalysis() {
             loading={analysisLoading}
             analysisTime={analysisResult.analysis_time}
           />
-        ) : (
+        )}
+        
+        {/* 初始状态 - 未进行分析 */}
+        {!analysisLoading && !analysisResult && (
           <div className="text-center py-10">
             <div className="text-gray-400 mb-4">
               点击"开始AI分析"按钮，获取上证指数的技术分析报告
