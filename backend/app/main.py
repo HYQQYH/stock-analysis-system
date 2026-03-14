@@ -13,6 +13,7 @@ from app.api import stocks as stocks_api
 from app.api import market as market_api
 from app.api import analysis as analysis_api
 from app.api import asserts as asserts_api
+from app.api import sectors as sectors_api
 
 # Configure logging
 logging.basicConfig(level=settings.log_level)
@@ -115,6 +116,7 @@ app.include_router(stocks_api.router, prefix="/api/v1", tags=["stocks"])
 app.include_router(market_api.router, prefix="/api/v1", tags=["market"])
 app.include_router(analysis_api.router, prefix="/api/v1", tags=["analysis"])
 app.include_router(asserts_api.router, prefix="/api/v1", tags=["asserts"])
+app.include_router(sectors_api.router, prefix="/api/v1", tags=["sectors"])
 # app.include_router(tasks_api.router, prefix="/api/v1/tasks", tags=["tasks"])
 
 

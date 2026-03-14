@@ -181,6 +181,22 @@ export const newsApi = {
     get<{ id: string; title: string; content: string; source: string; publishTime: string; investmentAdvice?: string }>(`/news/${id}`),
 };
 
+// 板块相关 API
+export interface SectorsResponse {
+  sectors: string[];
+  total: number;
+}
+
+export const sectorApi = {
+  // 获取板块列表 - 后端直接返回 SectorsResponse，没有包装在 data 中
+  getSectors: (): Promise<SectorsResponse> => 
+    api.get('/sectors').then(res => res.data),
+  
+  // 刷新板块列表（强制从 akshare 获取最新数据）
+  refreshSectors: (): Promise<SectorsResponse> => 
+    api.post('/sectors/refresh').then(res => res.data),
+};
+
 // Asserts相关 API
 export interface FileItem {
   name: string;

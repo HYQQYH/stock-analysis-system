@@ -3,7 +3,7 @@ import { Card, Input, Button, Select, Space, Alert, Result, Tag, Spin, Timeline 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStockStore, useAnalysisStore, useLoadingStore, useToastStore } from '../store';
-import { stockApi, analysisApi, PipelineStep } from '../services/api';
+import { stockApi, analysisApi, sectorApi, PipelineStep } from '../services/api';
 import { HistoryList } from '../components';
 
 const { Option } = Select;
@@ -70,6 +70,8 @@ function StockAnalysis() {
   // 组件状态
   const [stockCode, setStockCode] = useState('');
   const [inputSectorName, setInputSectorName] = useState('');
+  const [sectors, setSectors] = useState<string[]>([]);
+  const [sectorsLoading, setSectorsLoading] = useState(true);
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('短线T+1分析');
   const [result, setResult] = useState<{
     summary: string;
@@ -91,6 +93,28 @@ function StockAnalysis() {
   const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([]);
   // Track if we're currently in analysis
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // 加载板块列表
+  useEffect(() => {
+    const loadSectors = async () => {
+      setSectorsLoading(true);
+      try {
+        const data = await sectorApi.getSectors();
+        
+        if (data.sectors && Array.isArray(data.sectors)) {
+          setSectors(data.sectors);
+        } else {
+          setSectors([]);
+        }
+      } catch (err) {
+        console.error('获取板块列表失败:', err);
+        setSectors([]);
+      } finally {
+        setSectorsLoading(false);
+      }
+    };
+    loadSectors();
+  }, []);
 
   // 从持久化恢复状态
   useEffect(() => {
@@ -402,13 +426,26 @@ function StockAnalysis() {
 
           <div>
             <label className="block text-sm mb-1 text-gray-600">板块名称（可选）</label>
-            <Input
-              placeholder="如: 银行板块"
-              value={inputSectorName}
-              onChange={(e) => setInputSectorName(e.target.value)}
-              style={{ width: 200 }}
-              disabled={analysisLoading}
-            />
+            <Select
+              showSearch
+              placeholder="搜索或选择板块"
+              value={inputSectorName || undefined}
+              onChange={setInputSectorName}
+              style={{ width: 220 }}
+              disabled={analysisLoading || sectorsLoading}
+              loading={sectorsLoading}
+              allowClear
+              filterOption={(input, option) => {
+                const optionText = typeof option?.children === 'string' ? option.children : '';
+                return optionText.toLowerCase().includes(input.toLowerCase());
+              }}
+            >
+              {sectors.map((sector) => (
+                <Option key={sector} value={sector}>
+                  {sector}
+                </Option>
+              ))}
+            </Select>
           </div>
 
           <Space>

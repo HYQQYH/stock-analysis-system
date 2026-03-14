@@ -10,6 +10,12 @@ import remarkGfm from 'remark-gfm';
 import { useAnalysisStore, useToastStore, useLoadingStore } from '../store';
 import { analysisApi } from '../services/api';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// 配置 dayjs 插件
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface HistoryListProps {
   stockCode?: string;
@@ -342,7 +348,8 @@ function HistoryList({ stockCode, onViewDetail, refreshKey }: HistoryListProps) 
       width: 160,
       render: (time: string | null) => {
         if (!time) return '-';
-        return dayjs(time).format('YYYY-MM-DD HH:mm:ss');
+        // 转换为本地时区显示 (假设后端返回的是UTC时间)
+        return dayjs.utc(time).local().format('YYYY-MM-DD HH:mm:ss');
       },
     },
     {
