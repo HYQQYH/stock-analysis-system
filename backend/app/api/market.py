@@ -321,7 +321,8 @@ async def get_limit_up_pool(
 async def get_market_analysis(
     kline_type: str = Query("day", description="K-line type: day/week/month"),
     days: int = Query(30, ge=7, le=90, description="Number of days for analysis"),
-    save_result: bool = Query(True, description="Whether to save analysis result to database")
+    save_result: bool = Query(True, description="Whether to save analysis result to database"),
+    db: Session = Depends(get_db)
 ):
     """
     Get AI-powered market analysis (技术指标分析)
@@ -339,6 +340,9 @@ async def get_market_analysis(
     - **days**: Number of days for analysis (7-90)
     - **save_result**: Whether to save the result to database for history
     """
+    # Generate unique analysis_id
+    analysis_id = str(uuid.uuid4())
+    
     try:
         import pandas as pd
         
@@ -412,8 +416,66 @@ async def get_market_analysis(
             days=days
         )
         
+        # Save to database if requested
+        logger.info(f"[Market Analysis] save_result={save_result}, ai_result.success={ai_result.success}")
+        if save_result and ai_result.success:
+            try:
+                # Parse trading advice from analysis content or create empty advice
+                trading_advice_dict = {
+                    "direction": "",
+                    "target_price": None,
+                    "stop_loss": None,
+                    "take_profit": None,
+                    "holding_period": None,
+                    "risk_level": ""
+                }
+                
+                # Extract direction from trend (simplified mapping)
+                if ai_result.trend in ["上涨", "看涨", "上行"]:
+                    trading_advice_dict["direction"] = "买入"
+                elif ai_result.trend in ["下跌", "看跌", "下行"]:
+                    trading_advice_dict["direction"] = "卖出"
+                else:
+                    trading_advice_dict["direction"] = "持有"
+                
+                # Normalize sentiment_score to fit database constraints (max 9.99)
+                # The sentiment_score from AI is 0-100, scale it to 0-9.99
+                normalized_sentiment = min(ai_result.sentiment_score / 10, 9.99) if ai_result.sentiment_score else None
+                
+                # Normalize confidence_score to fit database constraints (max 9.99)
+                # The confidence_score from AI is 0-1, scale it to 0-9.99
+                normalized_confidence = min(ai_result.confidence_score * 10, 9.99) if ai_result.confidence_score else None
+                
+                # Create analysis history record
+                analysis_record = AnalysisHistoryModel(
+                    analysis_id=analysis_id,
+                    stock_code="000001",  # Index code
+                    analysis_type="index",
+                    analysis_mode="大盘技术分析",
+                    analysis_time=datetime.fromisoformat(ai_result.analysis_time.replace('Z', '+00:00')) if ai_result.analysis_time else datetime.now(),
+                    kline_type=kline_type,
+                    analysis_result=ai_result.analysis_content,
+                    trading_advice=trading_advice_dict,
+                    sentiment_score=normalized_sentiment,
+                    confidence_score=normalized_confidence,
+                    llm_model=ai_result.llm_model,
+                    status=AnalysisStatusEnum.COMPLETED,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                
+                db.add(analysis_record)
+                db.commit()
+                logger.info(f"[Market Analysis {analysis_id}] Analysis result saved to database successfully")
+                
+            except Exception as e:
+                logger.error(f"[Market Analysis] Failed to save analysis to database: {e}", exc_info=True)
+                db.rollback()
+                # Continue returning result even if save fails
+        
         # Build response data
         response_data = {
+            "analysis_id": analysis_id,  # Include analysis_id in response
             "index_code": "000001",
             "index_name": "上证指数",
             "kline_type": kline_type,
@@ -458,18 +520,36 @@ async def get_market_analysis_history(
     - **page_size**: Items per page (1-100)
     """
     try:
-        # Query only index analysis records (analysis_type = 'index')
+        # First, let's check ALL records to help debug
+        all_records = db.query(AnalysisHistoryModel).all()
+        logger.info(f"[Market Analysis History] Total records in DB: {len(all_records)}")
+        
+        # Check what analysis_type values exist
+        analysis_types = set()
+        stock_codes = set()
+        for r in all_records:
+            analysis_types.add(r.analysis_type)
+            stock_codes.add(r.stock_code)
+        logger.info(f"[Market Analysis History] Unique analysis_types: {analysis_types}")
+        logger.info(f"[Market Analysis History] Unique stock_codes: {stock_codes}")
+        
+        # Query index analysis records (analysis_type = 'index')
+        # Also allow records with stock_code = '000001' as fallback
         query = db.query(AnalysisHistoryModel).filter(
-            AnalysisHistoryModel.analysis_type == 'index'
+            (AnalysisHistoryModel.analysis_type == 'index') | 
+            (AnalysisHistoryModel.stock_code == '000001')
         )
         
         # Get total count
         total = query.count()
+        logger.info(f"[Market Analysis History] Matching records: {total}")
         
         # Get paginated results sorted by created_at descending
         items = query.order_by(
             AnalysisHistoryModel.created_at.desc()
         ).offset((page - 1) * page_size).limit(page_size).all()
+        
+        logger.info(f"[Market Analysis History] Found {len(items)} items for page {page}")
         
         # Convert to response format
         history_items = []
