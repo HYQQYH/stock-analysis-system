@@ -111,6 +111,9 @@ function MarketAnalysis() {
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState<boolean>(false);
+  
+  // AI分析当前步骤 (0: 获取数据, 1: 计算指标, 2: AI分析, 3: 生成报告)
+  const [analysisStep, setAnalysisStep] = useState<number>(0);
 
   const [marketData, setMarketData] = useState<{
     indexData?: {
@@ -262,17 +265,32 @@ function MarketAnalysis() {
     }
   };
 
-  // 获取AI市场分析结果
+  // 获取AI市场分析结果 - 带步骤模拟
   const fetchMarketAnalysis = async () => {
     setAnalysisLoading(true);
+    setAnalysisStep(0); // 重置到第一步
     setError(null);
+    
+    // 模拟步骤1: 获取数据 (1秒)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setAnalysisStep(1);
+    
+    // 模拟步骤2: 计算指标 (1秒)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setAnalysisStep(2);
+    
     try {
+      // 步骤3: AI分析 (实际API调用)
       const response = await marketApi.getMarketAnalysis({
         kline_type: klineType,
         days: analysisDays
       });
       
       console.log('AI分析响应:', response);
+      
+      // 步骤4: 生成报告
+      setAnalysisStep(3);
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       if (response && response.success) {
         setAnalysisResult(response);
@@ -286,6 +304,7 @@ function MarketAnalysis() {
       setAnalysisResult(null);
     } finally {
       setAnalysisLoading(false);
+      setAnalysisStep(0); // 重置步骤
     }
   };
 
@@ -413,7 +432,7 @@ function MarketAnalysis() {
             </div>
             <div className="mb-4">
               <Steps
-                current={0}
+                current={analysisStep}
                 status="process"
                 items={[
                   { title: '获取数据', description: '正在获取K线数据...' },
@@ -424,7 +443,7 @@ function MarketAnalysis() {
               />
             </div>
             <Progress 
-              percent={75} 
+              percent={Math.min((analysisStep + 1) * 25, 100)} 
               status="active" 
               strokeColor={{ from: '#108ee9', to: '#87d068' }}
               format={() => 'AI分析进行中...'}
