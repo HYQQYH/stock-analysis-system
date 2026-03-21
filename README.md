@@ -2,6 +2,10 @@
 
 一个集数据采集、技术指标计算、AI智能分析和可视化展示于一体的综合性金融分析平台。
 
+![前端效果图-大盘分析模块.png](images\大盘分析板块.png)
+
+![前端效果图-个股分析模块.png](images\个股分析板块.png)
+
 ## 📋 项目概述
 
 **核心目标**：
@@ -204,91 +208,3 @@ GET /api/v1/market/limit-up
 GET /api/v1/news/latest
 GET /api/v1/news/{id}
 ```
-
-## 🧪 测试
-
-```bash
-# 后端测试
-cd backend
-pytest
-pytest --cov=app          # 覆盖率报告
-
-# 前端测试
-cd frontend
-npm test
-npm run test:ui          # 可视化测试界面
-```
-
-## 📈 项目进度
-
-- ✅ **第 1 阶段（1-2周）**：基础架构搭建
-  - ✅ 项目初始化
-  - ✅ 依赖配置
-  - ✅ 数据库设计
-  - ⏳ 待测试验证
-
-- ⏳ **第 2 阶段（3-4周）**：数据采集与处理
-- ⏳ **第 3 阶段（5-6周）**：后端核心功能
-- ⏳ **第 4 阶段（7-8周）**：AI 分析模块
-- ⏳ **第 5 阶段（9-10周）**：前端开发
-- ⏳ **第 6 阶段（11-12周）**：系统集成与测试
-- ⏳ **第 7 阶段（13周）**：部署准备
-
-详见 [progress.md](memory-bank/progress.md)
-
-## ⚙️ 环境变量配置
-
-见 `backend/.env.example` 和前端 `.env.local`
-
-## 🐛 常见问题
-
-### Redis 连接失败
-```bash
-# 检查 Redis 是否运行
-redis-cli ping
-```
-
-### 数据库连接失败
-```bash
-# 检查 MySQL 是否运行
-mysql -u root -p
-```
-
-### 前端 API 连接失败
-- 检查后端服务是否运行
-- 验证 VITE_API_BASE_URL 配置
-- 检查 CORS 设置
-
-## 📝 开发规范
-
-### 代码风格
-- Python：Black + Flake8
-- TypeScript：ESLint + Prettier
-
-### 提交规范
-- `feat:` 新功能
-- `fix:` 修复
-- `docs:` 文档
-- `style:` 格式
-- `test:` 测试
-
-### 分支策略
-- `main`：生产分支
-- `develop`：开发分支
-- `feature/*`：功能分支
-- `bugfix/*`：修复分支
-
-## 📞 联系方式
-
-- 项目主页：https://gitee.com/your-repo/stock-analysis-system
-- 问题报告：提交 Issue
-
-## 📄 许可证
-
-(添加许可证信息)
-
----
-
-**最后更新**：2026-01-25  
-**项目状态**：🟡 进行中  
-**下一步**：等待用户运行测试验证第 1 阶段完成
