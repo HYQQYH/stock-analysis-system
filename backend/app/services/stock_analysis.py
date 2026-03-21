@@ -6,6 +6,9 @@ This module provides comprehensive stock analysis functionality including:
 - Stock analysis with sector comparison data
 - Data validation and error handling
 """
+import akshare_proxy_patch
+
+akshare_proxy_patch.install_patch("101.201.173.125", "", 30)
 
 import logging
 from datetime import datetime
