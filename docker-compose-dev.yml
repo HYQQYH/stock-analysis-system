@@ -29,7 +29,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: stock_analysis_redis
-    command: redis-server --appendonly yes --requirepass redis_pass_2026
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
