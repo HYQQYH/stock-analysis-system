@@ -629,7 +629,7 @@ class LLMManager:
         LLMProvider.OPENAI: "gpt-3.5-turbo",
         LLMProvider.DASHSCOPE: "qwen-turbo",
         LLMProvider.ZHIPU: "glm-4.7",
-        LLMProvider.MINIMAX: "MiniMax-M2.5",  # MiniMax official model name
+        LLMProvider.MINIMAX: "MiniMax-M2.7",  # MiniMax official model name
         LLMProvider.OLLAMA: "llama2"
     }
     

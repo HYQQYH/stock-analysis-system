@@ -14,7 +14,6 @@ scipy==1.11.4
 
 # Data Source
 akshare==1.18.59
-akshare-proxy-patch==0.3.0
 
 # HTTP Requests
 httpx==0.25.0

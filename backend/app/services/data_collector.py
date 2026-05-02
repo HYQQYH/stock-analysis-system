@@ -1,8 +1,4 @@
 """Data collection service wrapping akshare calls"""
-import akshare_proxy_patch
-
-akshare_proxy_patch.install_patch("101.201.173.125", "", 30)
-
 from typing import Optional
 import logging
 import time

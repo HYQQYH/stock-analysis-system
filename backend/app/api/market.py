@@ -1,10 +1,6 @@
 """
 Market-related API Routes
 """
-import akshare_proxy_patch
-
-akshare_proxy_patch.install_patch("101.201.173.125", "", 30)
-
 import logging
 import uuid
 import akshare as ak
